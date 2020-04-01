@@ -1,5 +1,21 @@
 ##################################################################
-############ script para previsao de casos confirmados COVID19
+############ script para previsao de casos confirmados COVID19 e ponto de inflexão para cada estado do Brasil
+#modelos de crescimento logístico (assumindo que a capacidade de suporte do meio, K, é 50% da população do estado) 
+#ajustados por máxima verossimilhança com base em informação de casos confirmados divulgados pelas secretarias da saúde , 
+#para estimar o número de casos confirmados e o pico da epidemia. 
+#Ao trabalhar com dados reais de casos confirmados, o modelo considera indiretamente as 
+#características intrínsecas de cada estado (e.g., densidade populacional, comportamento social normal da população, 
+#chegada/partida de pessoas infetadas). Os modelos permitem também verificar desvios ao crescimento previsto. 
+#Em alguns casos os dados sugerem 'achatamento da curva' 
+#(que pode ser devido a medidas de isolamento OU a aumento de subnotificação por causa de falta de testes). 
+#A capacidade de suporte do meio (K) potencialmente pode ser 100% da população do estado, 
+#mas como muitas pessoas infetadas não são testadas, variamos  K entre 1 e 100% da população do estado. 
+#Previsões durante os primeiros 50 dias têm variação associada a variação de K de no máximo 1 dia. 
+#Previsões de pico têm um erro associado de 6 a 10 dias (ver informação na figura) associado à variação de K.  
+#Limitações: subnotificação poderá aumentar ao longo do tempo.
+#Nesta versão considero K= 9.8% da população do estado, considerando as estimativas de que 
+#70% da população mundial será infectada e assumindo que desses 86% serão subnotificações (Li et al. 2020)
+#e também coloco a estimativa do ponto de inflexão (ou seja do ponto em que o número de casos novos começará a diminuir)
 
 
 library(MASS)

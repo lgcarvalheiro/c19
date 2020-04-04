@@ -1,5 +1,11 @@
+##################################################################################
+############ script para previsao de casos confirmados e infectados COVID19  #####
+##################################################################################
+################ Luísa G. Carvalheiro (Departamento de Ecologia, UFG)  ###########
+
+
 ##################################################################
-############ script para previsao de casos confirmados COVID19 e ponto de inflexão para cada estado do Brasil
+############ Descrição
 #modelos de crescimento logístico (assumindo que a capacidade de suporte do meio, K, é 50% da população do estado) 
 #ajustados por máxima verossimilhança com base em informação de casos confirmados divulgados pelas secretarias da saúde , 
 #para estimar o número de casos confirmados e o pico da epidemia. 
@@ -13,15 +19,15 @@
 #Previsões durante os primeiros 50 dias têm variação associada a variação de K de no máximo 1 dia. 
 #Previsões de pico têm um erro associado de 6 a 10 dias (ver informação na figura) associado à variação de K.  
 #Limitações: subnotificação poderá aumentar ao longo do tempo.
-#Nesta versão considero K= 9.8% da população do estado, considerando as estimativas de que 
-#70% da população mundial será infectada e assumindo que desses 86% serão subnotificações (Li et al. 2020)
-#e também coloco a estimativa do ponto de inflexão (ou seja do ponto em que o número de casos novos começará a diminuir)
+#Nesta versão a capacidade de suporte (K) depende de nível de notificação (0.14, Li et al. 2020) e proporção da população 
+# que estimamos ser afetada no final da epidemia. cenario positivo: 44%, cenário negativo: 88%, segundo esto do Imperial College
+#http://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/covid-19/report-12-global-impact-covid-19/
 
+##################################################################################
 
 library(MASS)
 library(visreg)
-library(inflection)
-#library(ggplot2)
+library(R0)
 
 ### função para calculo de datas
 inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
@@ -30,26 +36,47 @@ inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
 }
 
 
-DATA= read.table(file.choose(), header=T, sep="\t")
+DATAi= read.table(file.choose(), header=T, sep="\t")
+DATA= DATAi
 head(DATA)
-ESTADOS.info= read.table(file.choose(), header=T, sep="\t")
+ESTADOS.info_i= read.table(file.choose(), header=T, sep="\t")
 #ESTADOS.info=ESTADOS.info[ESTADOS.info$REGIAO=="CENTRO-OESTE",]
-#ESTADOS.info=ESTADOS.info[ESTADOS.info$ESTADO=="",]
+ESTADOS.info=ESTADOS.info_i[ESTADOS.info_i$ESTADO=="GO",]
+nrow(ESTADOS.info)
 
-#Li et al. 2020 10.1126/science.abb3221 (86% subnotificacao; 70% de pessoas afetadas)
-PROPPOP=0.14*0.7 # proporção da população do estado a ser considerada como capacidade de suporte do meio (K)
+
+######################################
+##### Data Imperial College for Brazil
+#http://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/covid-19/report-12-global-impact-covid-19/
+
+
+#R0	  Strategy	                            Prop infectados	proporção de hospitalizados	proporção de criticos
+#2.4	Enhanced social distancing of elderly	43%	            0.001	                      0.01
+#2.7	Enhanced social distancing of elderly	48%	            0.002	                      0.011
+#3	  Enhanced social distancing of elderly	53%	            0.002	                      0.014
+#3.3	Enhanced social distancing of elderly	57%	            0.002	                      0.015
+#2.4	Social distancing whole population	  45%	            0.002	                      0.012
+#2.7	Social distancing whole population	  50%	            0.002	                      0.014
+#3	  Social distancing whole population	  54%	            0.003	                      0.015
+#3.3	Social distancing whole population	  57%	            0.003	                      0.016
+#2.4	Unmitigated	                          75%	            0.004	                      0.023
+#2.7	Unmitigated	                          81%	            0.005	                      0.026
+#3	  Unmitigated	                          85%	            0.005	                      0.028
+#3.3	Unmitigated	                          88%	            0.005	                      0.029
+
+
+NOT=0.14#proporção de casos notificadosLi et al. 2020 10.1126/science.abb3221 (86% subnotificacao)
+POPAFE=0.88#proporção da população total afetada 33% de pessoas afetadas (caso haja isolamento) 
+PROPPOP=NOT*POPAFE # proporção da população do estado a ser considerada como capacidade de suporte do meio (K)
 TIPO_GRAFICO="curto.prazo"
 #TIPO_GRAFICO="longo.prazo"
 TIPO_GRAFICO="picos"
 
-YLIM_prop=0.15  # constante para definir proporção de assimptota usada como YLIM em graficos de pico de infectados
+YLIM_prop=0.75  # constante para definir proporção de assimptota usada como YLIM em graficos de pico de infectados
 
 ## constantes para calculo de leitos
-PROPLEITO_pessimista=0.08 # >50 precisam de leito 26,7%
 DIAS_REC=14  # média de tempo de recuperação são 14 dias
 PROPOBITOS=0.027 # 2.7%
-DIAS_OBITO =8 #   
-PROPLEITO_otimista =0.05 # >60 precisam de leito 12% 
 #e recuperados entre os que precisam de leito (média de tempo de recuperação são 14 dias) são descontados
 
 TIPO_PAINEL="Regiao"
@@ -60,18 +87,19 @@ TIPO_PAINEL="Regiao"
 TABELA_todos=c(Estado="dummy", Data=0, Dia=0, Casos_conf_azul=0, Casos_conf_lar=0,
          Infectados_azul=0, Infectados_lar=0, 
          Recuperados_azul=0, Recuperados_lar=0,
-         leitos_pess_lar=0, leitos_opt_lar=0)
+         hospitalizados=0, leitos=0)
   
 for (r in unique(ESTADOS.info$REGIAO)){
   
 if(TIPO_PAINEL=="Regiao") {
-  
-par(mfrow=c(3,3), oma=c(4,3,4,1), mar=c(2,2,2,1))
+if(length(unique(ESTADOS.info$ESTADO))>4){  
+par(mfrow=c(3,3), oma=c(4,3,5,1), mar=c(3,2,2,1))
+} else {par(mfrow=c(1,length(unique(ESTADOS.info$ESTADO))), oma=c(4,3,5,1), mar=c(3,2,2,1))}
 }
 
 if(TIPO_PAINEL=="ESTADO") {
   
-  par(mfrow=c(1,3), oma=c(4,3,4,1), mar=c(2,2,2,1))
+  par(mfrow=c(1,3), oma=c(4,3,5,1), mar=c(3,2,2,1))
 }
 
 
@@ -82,8 +110,9 @@ for (i in 1:length(unique(ESTADOS.info$ESTADO))){
   ESTADO=as.character(ESTADOS.info$ESTADO[i])
   
 D1=as.Date(ESTADOS.info$DIA1[i] ,"%d/%m/%y")
-DIAR1=as.Date(ESTADOS.info$DIA_REST2[i],"%d/%m/%y")
-DIAR=as.numeric(as.character(as.data.frame(as.Date(ESTADOS.info$DIA_REST2[i],"%d/%m/%y")-as.Date(ESTADOS.info$DIA1[i],"%d/%m/%y"))))
+DIAR1=as.Date(ESTADOS.info$D50[i],"%d/%m/%y")
+DIAR=as.numeric(as.character(as.data.frame(
+  as.Date(ESTADOS.info$D50[i],"%d/%m/%y")-as.Date(ESTADOS.info$DIA1[i],"%d/%m/%y"))))
 
 
 POPULAÇÃO=ESTADOS.info$POPULACAO[i]
@@ -91,8 +120,8 @@ ASSIMPTOTA=PROPPOP*POPULAÇÃO
 # para gráficos de previsão de 50 dias
 
 if(TIPO_GRAFICO=="curto.prazo") {
-YLIM=3000
-XLIM=50
+YLIM=4000
+XLIM=80
 } else if (TIPO_GRAFICO=="longo.prazo"){
 
 YLIM=ASSIMPTOTA*1.1
@@ -104,28 +133,38 @@ XLIM=150
 }
 
 
-
+if(nrow(DATA[DATA$ESTADO==ESTADO,])<10) {COLR="white"} else {COLR="white"} 
 
 
 mdf=glm(log(Casos/(ASSIMPTOTA-Casos)) ~Dia, data=DATA[DATA$ESTADO==ESTADO,])
-mdfr=glm(log(Casos/(ASSIMPTOTA-Casos)) ~Dia, data=DATA[DATA$ESTADO==ESTADO&DATA$Dia>DIAR,])
+
+
 
 COEF=summary(mdf)$coefficients
 I=COEF[1,1]
 S=COEF[2,1]
 
-COEFr=summary(mdfr)$coefficients
+x=1:300
+y=ASSIMPTOTA/(1+1/exp(I+S*x))
+ER0 <- estimate.R(epid=round(y,0), GT=mGT, methods=c("ML"))
+R0=ER0$estimates$ML$R
+
+if(Sys.Date()-DIAR1>=7){
+  mdfr=glm(log(Casos/(ASSIMPTOTA-Casos)) ~Dia, data=DATA[DATA$ESTADO==ESTADO&DATA$Dia>DIAR,])
+  
+  COEFr=summary(mdfr)$coefficients
 Ir=COEFr[1,1]
 Sr=COEFr[2,1]
-
-x=1:180
-xr=1:180+DIAR
-y=ASSIMPTOTA/(1+1/exp(I+S*x))
+xr=1:300+DIAR
 yr=ASSIMPTOTA/(1+1/exp(Ir+Sr*xr)) # linha 
+ER0r <- estimate.R(epid=round(y,0), GT=mGT, methods=c("ML"))
+R0r=ER0$estimates$ML$R
+
+}
 
 
-
-
+hospitalizados_12pc=rep("NA",length(x))
+leitos_5pc=rep("NA",length(x))
 
 
 if(TIPO_GRAFICO=="longo.prazo"|TIPO_PAINEL=="ESTADO") {
@@ -137,16 +176,16 @@ if(TIPO_GRAFICO=="longo.prazo"|TIPO_PAINEL=="ESTADO") {
   with(DATA[DATA$ESTADO==ESTADO,], plot(Casos~Dia, ylim=c(0,YLIM), xlim=c(0,XLIM), main=ESTADO[1],xaxt = "n", 
                                         xlab=""))
   
-  LAB=seq(as.Date(D1),as.Date(D1)+150,by="14 days")
+  LAB=seq(as.Date(D1),as.Date(D1)+210,by="14 days")
   LAB=format(LAB, format="%b %d")
-  axis(1, at=(1:11)*10-10, labels=LAB)
+  axis(1, at=seq(from = 1, to = 211, by = 14), labels=LAB)
   
   lines(x,y, col="blue")
-  
+  text(1, 0.98*YLIM, paste("R0=", round(R0,2)), cex =.7, col="dark blue", adj=0)
   
   
   #######################################
-  if (Sys.Date()-DIAR1>6&ESTADO!="RR"&ESTADO!="AP"&ESTADO!="PI"&ESTADO!="PB"){
+  if (Sys.Date()-DIAR1>=7){
     lines(xr,yr, col="dark orange", lty=2)
     
     # qual a data em que ser´o pico?
@@ -155,21 +194,28 @@ if(TIPO_GRAFICO=="longo.prazo"|TIPO_PAINEL=="ESTADO") {
     Function_mdfr = function(xr) ASSIMPTOTA/(1+1/exp(Ir+Sr*xr))
     xpicor= inverseFun(y = ASSIMPTOTA*0.99, Function_mdfr, extendInt="yes")$root
     Dpicor=D1 +xpicor
-    text(50, YLIM*0.9, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark orange",adj=1)
+    text(80, YLIM*0.9, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark orange",adj=1)
+    text(80, 0.98*YLIM, paste("R0=", round(R0r,2)), cex =.7, col="dark orange", adj=1)
     
     # qual a data em que haverá N doentes?
     
     x2000=  (log(2000/(ASSIMPTOTA-2000))-Ir)/Sr
     D2000=D1 +x2000
-    text(50, 0.85*YLIM, paste(D2000, " (2000casos)"), cex =.8, col="dark orange", adj=1)
+    text(80, 0.85*YLIM, paste(D2000, " (2000casos)"), cex =.8, col="dark orange", adj=1)
     
     x1000=  (log(1000/(ASSIMPTOTA-1000))-Ir)/Sr
     D1000=D1 +x1000
-    text(50, 0.8*YLIM, paste(D1000, " (1000casos)"), cex =.8, col="dark orange", adj=1)
+    text(80, 0.8*YLIM, paste(D1000, " (1000casos)"), cex =.8, col="dark orange", adj=1)
     
-  } #laranja loga duração
+  } #laranja longa duração
   
 } #longa duração
+
+
+
+  ##############################################
+################   PICOS    ###############
+###########################################################
 
 if(TIPO_GRAFICO=="picos"|TIPO_PAINEL=="ESTADO") {
   YLIM=ASSIMPTOTA*YLIM_prop
@@ -178,16 +224,16 @@ if(TIPO_GRAFICO=="picos"|TIPO_PAINEL=="ESTADO") {
   ESTADO=as.character(ESTADOS.info$ESTADO[i])
 if(TIPO_PAINEL=="ESTADO"){
     with(DATA[DATA$ESTADO==ESTADO,], plot(Casos~Dia, ylim=c(0,YLIM), xlim=c(0,XLIM), main=ESTADO[1],xaxt = "n", ylab="Número de infectados",
-               xlab=""))
+               xlab="", col="white"))
 }  else {
   with(DATA[DATA$ESTADO==ESTADO,], plot(Casos~Dia, ylim=c(0,YLIM), xlim=c(0,XLIM), main=ESTADO[1],xaxt = "n", 
-                                               xlab=""))}
+                                               xlab="", col="white"))}
   
   
-  LAB=seq(as.Date(D1),as.Date(D1)+150,by="14 days")
+  LAB=seq(as.Date(D1),as.Date(D1)+210,by="14 days")
   LAB=format(LAB, format="%b %d")
-  axis(1, at=(1:11)*10-10, labels=LAB)
-  
+  axis(1, at=seq(from = 1, to = 211, by = 14), labels=LAB)
+ # ?axis
 
   
   # alteração de intercepto correspondente a adiantamento de 14 dias (tempo médio de recuperação ou morte, aqui assume-se que o tempo é igual)
@@ -197,16 +243,24 @@ if(TIPO_PAINEL=="ESTADO"){
   Yinfectados=y-Yrecup
   lines(x, Yinfectados, col="blue", lty=2)
   
-  y_pessimista=PROPLEITO_pessimista*Yinfectados # assume-se que 
-  y_otimista=PROPLEITO_otimista*Yinfectados
-  #y_pessimista=PROPLEITO_pessimista*(ASSIMPTOTA/(1+1/exp(I+S*x)))-PROPLEITO_pessimista*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_REC))))-(PROPLEITO_pessimista-PROPOBITOS)*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_OBITO)))) 
-  #y_otimista=PROPLEITO_otimista*(ASSIMPTOTA/(1+1/exp(I+S*x)))-PROPLEITO_otimista*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_REC))))-(PROPLEITO_otimista-PROPOBITOS)*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_OBITO)))) 
+  hospitalizados_12pc=0.12*Yinfectados # assume-se que 
+  leitos_5pc=0.05*Yinfectados
   
-  lines(x,y_pessimista, col="dark blue")
-  lines(x,y_otimista, col="light blue")
+  #lines(x,hospitalizados_12pc, col="dark blue")
+  #lines(x,leitos_5pc, col="light blue")
+  
+  #ponto de inflexão
+  infl <- c(FALSE, diff(diff(Yinfectados)>0)!=0)
+  
+  DATA_INF=x[which(infl == TRUE)[[1]]]
+  
+  INFL_D=1+D1 +DATA_INF
+  text(1, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, 
+       col="dark blue", adj=0)
+  
   
   #######################################
-  if (Sys.Date()-DIAR1>6&ESTADO!="RR"&ESTADO!="AP"&ESTADO!="PI"&ESTADO!="PB"){
+  if (Sys.Date()-DIAR1>=7){
   #  lines(xr,yr, col="dark orange", lty=2)
     
     # qual a data em que ser´o pico?
@@ -217,32 +271,40 @@ if(TIPO_PAINEL=="ESTADO"){
     Yrecup_r=ASSIMPTOTA/(1+1/exp((Ir-DIAS_REC*Sr)+Sr*xr)) 
     # 
       #  lines(x, Yrecup, col="blue", lty=2)
- 
     
     Yinfectados_r=yr-Yrecup_r
     lines(xr, Yinfectados_r, col="orange", lty=2)
-    
-    # qual a data sera o ponto de inflexão?
-    infl <- c(FALSE, diff(diff(Yinfectados_r)>0)!=0)
 
-    y_pessimista_r=PROPLEITO_pessimista*Yinfectados_r # assume-se que 
-    y_otimista_r=PROPLEITO_otimista*Yinfectados_r
-    #y_pessimista=PROPLEITO_pessimista*(ASSIMPTOTA/(1+1/exp(I+S*x)))-PROPLEITO_pessimista*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_REC))))-(PROPLEITO_pessimista-PROPOBITOS)*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_OBITO)))) 
-    #y_otimista=PROPLEITO_otimista*(ASSIMPTOTA/(1+1/exp(I+S*x)))-PROPLEITO_otimista*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_REC))))-(PROPLEITO_otimista-PROPOBITOS)*(ASSIMPTOTA/(1+1/exp(I+S*(x-DIAS_OBITO)))) 
     
-    lines(x,y_pessimista_r, col="dark orange")
-    lines(x,y_otimista_r, col="red")
+        
+    hospitalizados_12pc=0.12*Yinfectados_r # assume-se que 
+    leitos_5pc=0.05*Yinfectados_r
     
+    #     lines(x,hospitalizados_12pc, col="red")
+    #    lines(x,leitos_5pc, col="orange")
+    
+    #ponto de inflexão
+    infl <- c(FALSE, diff(diff(Yinfectados_r)>0)!=0)
+    
+    DATA_INF=x[which(infl == TRUE)[[1]]]
+    
+    INFL_D=D1+1+DIAR+DATA_INF
+    text(150, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, col="dark orange", adj=1)
+
+    
+
 } # laranja pico
-} # pico  
   
+  } # pico  
+  
+#par(mfrow=c(1,1))
 if(TIPO_GRAFICO=="curto.prazo"|TIPO_PAINEL=="ESTADO") {
 
-    YLIM=3000
-  XLIM=50
+    YLIM=4000
+  XLIM=80 
   
   ESTADO=as.character(ESTADOS.info$ESTADO[i])
-
+#par(mfrow=c(1,1))
   if(TIPO_PAINEL=="ESTADO") {
     with(DATA[DATA$ESTADO==ESTADO,], plot(Casos~Dia, ylim=c(0,YLIM), xlim=c(0,XLIM), main=ESTADO[1],xaxt = "n", 
                                         xlab=""))
@@ -250,13 +312,15 @@ if(TIPO_GRAFICO=="curto.prazo"|TIPO_PAINEL=="ESTADO") {
                                                  xlab=""))}
   
 
-  LAB=seq(as.Date(D1),as.Date(D1)+150,by="14 days")
+  LAB=seq(as.Date(D1),as.Date(D1)+210,by="14 days")
   LAB=format(LAB, format="%b %d")
-  axis(1, at=(1:11)*10-10, labels=LAB)
+  axis(1, at=seq(from = 1, to = 211, by = 14), labels=LAB)
 
   lines(x,y, col="blue")
   
-# qual a data em que ser´o pico?
+  text(1, 0.98*YLIM, paste("R0=", round(R0,2)), cex =.7, col="dark blue", adj=0)
+  
+  # qual a data em que ser´o pico?
 Function_mdf = function(x) ASSIMPTOTA/(1+1/exp(I+S*x))
 xpico= inverseFun(y = ASSIMPTOTA*0.99, Function_mdf, extendInt="yes")$root
 Dpico=as.Date(D1, "%d,%m,%y") +round(xpico,0)
@@ -272,7 +336,6 @@ x1000=  (log(1000/(ASSIMPTOTA-1000))-I)/S
 D1000=D1 +x1000
 text(1, YLIM*0.7, paste(D1000, " (1000casos)"), cex =.8, col="blue",adj=0)
 
-  
 #ponto de inflexão
 Yrecup=ASSIMPTOTA/(1+1/exp((I-DIAS_REC*S)+S*x)) 
 Yinfectados=y-Yrecup
@@ -280,33 +343,34 @@ infl <- c(FALSE, diff(diff(Yinfectados)>0)!=0)
 
 DATA_INF=x[which(infl == TRUE)[[1]]]
 
-INFL_D=D1 +DATA_INF
+INFL_D=1+D1 +DATA_INF
 text(1, 0.6*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, 
      col="dark blue", adj=0)
 
-#######################################
-if (Sys.Date()-DIAR1>6&ESTADO!="RR"&ESTADO!="AP"&ESTADO!="PI"&ESTADO!="PB"){
-  lines(xr,yr, col="dark orange", lty=2)
   
- 
+#######################################
+if (Sys.Date()-DIAR1>=7){
+  lines(xr,yr, col="dark orange", lty=2)
+  text(80, 0.98*YLIM, paste("R0=", round(R0r,2)), cex =.7, col="dark orange", adj=1)
+  
+  # qual a data em que ser´o pico?
+  
   
   Function_mdfr = function(xr) ASSIMPTOTA/(1+1/exp(Ir+Sr*xr))
   xpicor= inverseFun(y = ASSIMPTOTA*0.99, Function_mdfr, extendInt="yes")$root
   Dpicor=D1 +xpicor
-  text(50, YLIM*0.9, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark orange",adj=1)
-  
+  text(80, YLIM*0.9, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark orange",adj=1)
   
   # qual a data em que haverá N doentes?
   
   x2000=  (log(2000/(ASSIMPTOTA-2000))-Ir)/Sr
   D2000=D1 +x2000
-  text(50, 0.8*YLIM, paste(D2000, " (2000casos)"), cex =.8, col="dark orange", adj=1)
+  text(80, 0.8*YLIM, paste(D2000, " (2000casos)"), cex =.8, col="dark orange", adj=1)
   
   x1000=  (log(1000/(ASSIMPTOTA-1000))-Ir)/Sr
   D1000=D1 +x1000
-  text(50, 0.7*YLIM, paste(D1000, " (1000casos)"), cex =.8, col="dark orange", adj=1)
-  
-  
+  text(80, 0.7*YLIM, paste(D1000, " (1000casos)"), cex =.8, col="dark orange", adj=1)
+
   #ponto de inflexão
   Yrecup_r=ASSIMPTOTA/(1+1/exp((Ir-DIAS_REC*Sr)+Sr*xr)) 
   Yinfectados_r=yr-Yrecup_r
@@ -314,8 +378,8 @@ if (Sys.Date()-DIAR1>6&ESTADO!="RR"&ESTADO!="AP"&ESTADO!="PI"&ESTADO!="PB"){
   
   DATA_INF=x[which(infl == TRUE)[[1]]]
   
-  INFL_D=D1 +DATA_INF
-  text(50, 0.6*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, col="dark orange", adj=1)
+  INFL_D=D1+1+DIAR+DATA_INF
+  text(80, 0.6*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, col="dark orange", adj=1)
   
 } # laranja curta duração
 
@@ -336,39 +400,45 @@ if(TIPO_GRAFICO=="curto.prazo") {
         line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1 )
   mtext(paste("Linha azul usa todos os pontos para gerar modelo"), 
         line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )
-  mtext(paste("Linha laranja usa apenas pontos (minimo = 8 pontos) após comércio fechar para gerar modelo"), 
+  mtext(paste("Linha laranja usa apenas dias com mais de 50 casos para gerar modelo (mínimo 8 pontos)"), 
         line=0, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="dark orange" )
-  mtext(paste("seta vermelha indica data de restrições ao comércio"), 
-        line=0, side=1, outer=TRUE, cex=0.8, adj = 1, col="red" )
+#  mtext(paste("seta vermelha indica data de restrições ao comércio"), 
+#        line=0, side=1, outer=TRUE, cex=0.8, adj = 1, col="red" )
   mtext(paste(" Casos confirmados"), 
         line=1, side=2, outer=TRUE, cex=1,  font=2 )
   
-  arrows(x0=DIAR, y0=500, x1 = DIAR, y1 =30, col = "red", lty =1,length = 0.1, angle = 20,
-         lwd = 2)
+#  arrows(x0=DIAR, y0=500, x1 = DIAR, y1 =30, col = "red", lty =1,length = 0.1, angle = 20,
+#         lwd = 2)
 } # legendas curto prazo
 
 if(TIPO_GRAFICO=="picos") {
   
-  mtext(paste("COVID19 - progressão de número de infectados e necessidade de leitos"), 
+  mtext(paste("COVID19 - progressão de número de infectados"), 
         line=3, side=3, outer=TRUE, cex=1.1, adj = 0, font=2 )
   mtext(paste("diferença entre casos confirmados e casos resolvidos (recuperados ou mortos) estimados com base em modelos de crescimento logístico para  (K= ", PROPPOP*100, "% da população do estado)"), 
         line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1 )
-  mtext(paste("Linha tracejada - infectados; Linha escura - leitos (26% de infectados); Linha clara - leitos (16% de infectados)"), 
-        line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )
-  mtext(paste("Linhas azuis usam todos os pontos; linhas laranja usam apenas pontos (minimo = 8 pontos) após comércio fechar para gerar modelo"), 
-        line=0, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="dark orange" )
+ # mtext(paste("Linha tracejada - infectados; Linha escura - leitos (26% de infectados); Linha clara - leitos (16% de infectados)"), 
+#        line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )
+  mtext(paste("Linhas azuis usam todos os pontos; linhas laranja usam apenas dias com mais de 50 casos para gerar modelo (mínimo 8 pontos)"), 
+        line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="dark orange" )
   
-  mtext(paste(" Número de infectados ou demanda de leitos"), 
+  mtext(paste(" Número de infectados"), 
         line=1, side=2, outer=TRUE, cex=1,  font=2 )
   
 } # legenda picos
 }
 mtext(paste("Departamento de Ecologia, UFG |",D), 
-      line=0, side=3, outer=TRUE, cex=0.8, adj = 1 )
-mtext(paste("ponto de inflexão corresponde à data onde se espera que o número de infectados no dia começará a diminuir"), 
-      line=1, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
-mtext(paste("margem de erro de datas estimadas baseada em variação de capacidade de suporte (K) que depende de max população infectada e subnotificação"), 
+      line=0, side=3, outer=TRUE, cex=0.7, adj = 1 )
+mtext(paste("Constantes consideradas no modelo para definir capacidade de suporte (K):"), 
       line=2, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
+mtext(paste("Proporção da população total afetada - ", POPAFE, "% (source: imperial college report 12)"), 
+      line=1, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
+mtext(paste("Proporção de casos notificados - ", NOT, "% (source: Li et al 2020)"), 
+      line=0, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
+
+mtext(paste("margem de erro de datas estimadas baseada em variação de capacidade de suporte (K) "), 
+      line=-1, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
+
 
 Data2= as.character(seq(as.Date(D1), as.Date(D1+length(x)-1), by='days'))
 
@@ -377,11 +447,15 @@ TABELA_estado=cbind(Estado=rep(ESTADO, length(x)), Data= Data2,
                     Dia=x, Casos_conf_azul=y, Casos_conf_lar=c(rep(0,DIAR ),yr[1:(length(yr)-DIAR)]),
                     Infectados_azul=Yinfectados, Infectados_lar=c(rep(0,DIAR ),Yinfectados[1:(length(Yinfectados_r)-DIAR)]), 
                     Recuperados_azul=Yrecup, Recuperados_lar=c(rep(0,DIAR ),Yrecup_r[1:(length(Yrecup_r)-DIAR)]),
-                     leitos_pess_lar=c(rep(0,DIAR ),y_pessimista_r[1:(length(y_pessimista_r)-DIAR)]), 
-                    leitos_otim_lar=c(rep(0,DIAR ),y_otimista_r[1:(length(y_otimista_r)-DIAR)]))
+                     hospitalizados=c(rep(0,DIAR ),hospitalizados_12pc[1:(length(hospitalizados_12pc)-DIAR)]), 
+                    leitos=c(rep(0,DIAR ),leitos_5pc[1:(length(leitos_5pc)-DIAR)]))
 
 TABELA_todos=rbind(TABELA_todos,TABELA_estado)
 } # loop ESTADOS
-  } # loop regiões
+} # loop regiões
 
-#write.table(TABELA_todos, file=".../TAB_valores_estimadosv3.txt", sep="\t")
+head(TABELA_todos)
+TABELA_todos=as.data.frame(TABELA_todos[-1,])
+
+#write.table(TABELA_todos, file="C:/Users/lgcar/OneDrive/Ambiente de Trabalho/COVID19/TAB_valores_estimadosITALIA.txt", sep="\t")
+

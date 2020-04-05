@@ -51,7 +51,7 @@ inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
 ## GRAPH PRESENTATION PARAMETERS
 #################################
 # TIPO_GRAFICO #OPTIONS: "curto.prazo"; "longo.prazo"; "picos" (DEFAULT), if "curto.prazo" short term graphs for the first 60 days will be generated presenting estimates of R0 current growth rate, inflexion point date (peak of epidemy), date for reaching max number of cases (end of epidemy)  
-# TIPO_PAINEL # OPTIONS: "Regiao" (DEFAULT); "Region", if "Region" it will generate a Figure with 9 graphs; if "REGION" it will generate a Figure with as many graphs as 'those 'REGIONs' in the data table (max of 4) 
+# TIPO_PAINEL # OPTIONS: "Region" (DEFAULT); "Group", if "Region" it will generate a Figure with 9 graphs; if "REGION" it will generate a Figure with as many graphs as 'those 'REGIONs' in the data table (max of 4) 
 # YLIM_prop # 0.75 (DEFAULT) constant to define YLIM for peak graphs (proportion of K) 
 
 ## REPORT TABLE PARAMETERS
@@ -72,7 +72,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
   for (r in unique(REGIONS.info$GROUP)){
     PROPPOP=NOT*POPAFE
     
-    if(TIPO_PAINEL=="Region") {
+    if(TIPO_PAINEL=="Group") {
       if(length(unique(REGIONS.info$REGION))>4){  
         par(mfrow=c(3,3), oma=c(4,3,5,1), mar=c(3,2,2,1))
       } else {par(mfrow=c(1,length(unique(REGIONS.info$REGION))), oma=c(4,3,5,1), mar=c(3,2,2,1))}
@@ -80,7 +80,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
     
     if(TIPO_PAINEL=="Region") {
       
-      par(mfrow=c(1,3), oma=c(4,3,5,1), mar=c(3,2,2,1))
+      par(mfrow=c(1,3), oma=c(4,3,5,1), mar=c(3,4,2,3))
     }
     
     
@@ -172,7 +172,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         
         REGION=as.character(REGIONS.info$REGION[i])
         with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", 
-                                              xlab=""))
+                                              xlab="", ylab="Casos confirmados"))
         
         LAB=seq(as.Date(D1),as.Date(D1)+210,by="14 days")
         LAB=format(LAB, format="%b %d")
@@ -229,7 +229,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         
         REGION=as.character(REGIONS.info$REGION[i])
         if(TIPO_PAINEL=="Region"){
-          with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", ylab="Número de infectados",
+          with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main="",xaxt = "n", ylab="Número de infectados",
                                                 xlab="", col="white"))
         }  else {
           with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", 
@@ -315,10 +315,10 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         
         REGION=as.character(REGIONS.info$REGION[i])
         #par(mfrow=c(1,1))
-        if(TIPO_PAINEL=="Region") {
+        if(TIPO_PAINEL=="Group") {
           with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", 
                                                 xlab=""))
-        } else { with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", ylab="Cases confirmados",
+        } else { with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main="",xaxt = "n", ylab="Casos confirmados",
                                                        xlab=""))}
         
         

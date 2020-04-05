@@ -1,4 +1,21 @@
-### INPUTS TABLES
+#################################################
+#############################################
+# Example for RUNNING FUNCTION C19Proj_function
+
+DATA= read.table(file.choose(), header=T, sep="\t")
+REGIONS.info_i= read.table(file.choose(), header=T, sep="\t")
+REGIONS.info=REGIONS.info_i[REGIONS.info_i$REGION=="GO",]
+
+
+C19Proj_function(Data.Table=DATA, Tabela.info=REGIONS.info, DIAS_REC=14,
+                           NOT=0.14, POPAFE=0.44,R0e=F,
+                           TIPO_GRAFICO="curto.prazo",TIPO_PAINEL="Region", YLIM_prop=0.75,
+                           ReportTable=F,TableFile="ReportTable.txt") 
+  
+
+
+
+## INPUTS TABLES
 #################
 # Data.Table # Table with 4 columns (Date,	Day,	REGION,	Cases)
 #Date - actual date

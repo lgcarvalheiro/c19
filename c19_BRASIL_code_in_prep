@@ -473,7 +473,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
   } # loop GROUP
   
   if (ReportTable==T){TABELA_todos=as.data.frame(TABELA_todos[-1,])
-  write.table(TABELA_todos, file="C:/Users/lgcar/OneDrive/Ambiente de Trabalho/COVID19/TAB_valores_estimadosITALIA.txt", sep="\t")
+  write.table(TABELA_todos, file=TableFile, sep="\t")
   } # loop Tabela 
 } #loop function
 

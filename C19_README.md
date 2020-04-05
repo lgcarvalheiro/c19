@@ -1,6 +1,7 @@
 #################################################
 #############################################
 # Example for RUNNING FUNCTION C19Proj_function
+#################################################
 
 DATA= read.table(file.choose(), header=T, sep="\t")
 REGIONS.info_i= read.table(file.choose(), header=T, sep="\t")
@@ -13,7 +14,7 @@ C19Proj_function(Data.Table=DATA, Tabela.info=REGIONS.info, DIAS_REC=14,
                            ReportTable=F,TableFile="ReportTable.txt") 
   
 
-
+############################################################
 
 ## INPUTS TABLES
 #################

@@ -3,7 +3,6 @@
 ##################################################################################
 ################ Luísa G. Carvalheiro (Departamento de Ecologia, UFG)  ###########
 
-
 #######################################################################
 ### required packages
 #######################################################################
@@ -44,6 +43,12 @@ inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
 #NOT #0.14 (DEFAULT) proportion of infected people that are known (notified) Li et al. 2020 10.1126/science.abb3221 (86% subnotificacao)
 #POPAFE #0.44 (DEFAULT) #proportion of the total population that is thought to be infected in the end of the epidemy  
 
+
+## CONSTANTS to define number of hospitalized people, and number of critical cases
+#HR - proportion of infected people (reported cases) that need hospitalization
+#LR - proportion of infected people (reported cases) that need intensive care
+
+
 ## CONSTANTS to estimate number of infected people in a given date (acumulated number of infected people - solved cases)
 ################################################################################################################################
 #DIAS_REC # DEFAULT=14; average time for cases to be solved (cured or death); 14 is the default assuming that with proper medicine deaths will be avoided 
@@ -62,13 +67,17 @@ inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
 
 
 
-C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAFE=0.44,R0e=F, TIPO_GRAFICO,TIPO_PAINEL, YLIM_prop=0.75,ReportTable=F,TableFile) {
+C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAFE=0.44,HR=0.1, LR=0.025, R0e=F, TIPO_GRAFICO,TIPO_PAINEL, YLIM_prop=0.75,ReportTable=F,TableFile) {
   
   TABELA_todos=c(REGION="dummy", Data=0, Day=0, Casos_conf_azul=0, Casos_conf_lar=0,
                  Infectados_azul=0, Infectados_lar=0, 
                  Recuperados_azul=0, Recuperados_lar=0,
                  hospitalizados=0, leitos=0)
   
+  #generation time used to calculate R0
+  mGT<-generation.time("gamma", c(5.0, 1.9)) # values taken from Ferreti et al. 2020
+  
+  #loop
   for (r in unique(REGIONS.info$GROUP)){
     PROPPOP=NOT*POPAFE
     
@@ -130,6 +139,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
       
       if(R0e==T){
       #### estimativa de R0
+      
       ER0 <- estimate.R(epid=round(y,0), GT=mGT, methods=c("ML", "SB"))
       R0=ER0$estimates$ML$R
       R0b=mean(ER0$estimates$SB$R)
@@ -161,8 +171,8 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
       }
       
       
-      hospitalizados_12pc=rep("NA",length(x)) #0.081
-      leitos_5pc=rep("NA",length(x))
+      hospitalizados=rep("NA",length(x)) #0.081
+      leitos=rep("NA",length(x))
       
       
       if(TIPO_GRAFICO=="longo.prazo"|TIPO_PAINEL=="Region") {
@@ -181,9 +191,9 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         lines(x,y, col="blue")
  
         Function_mdf = function(x) ASSIMPTOTA/(1+1/exp(I+S*x))
-        xpicor= inverseFun(y = ASSIMPTOTA*0.99, Function_mdf, extendInt="yes")$root
-        Dpicor=D1 +xpico
-        text(1, YLIM*0.7, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark blue",adj=0)
+        xpico= inverseFun(y = ASSIMPTOTA*0.99, Function_mdf, extendInt="yes")$root
+        Dpico=D1 +xpico
+        text(1, YLIM*0.7, paste(Dpico, "±7dias (max)"), cex =.8, col="dark blue",adj=0)
  
                
         if(R0e==T){
@@ -249,11 +259,11 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         Yinfectados=y-Yrecup
         lines(x, Yinfectados, col="blue", lty=2)
         
-        hospitalizados_12pc=0.12*Yinfectados # assume-se que 
-        leitos_5pc=0.05*Yinfectados
+        hospitalizados=HR*Yinfectados # assume-se que 
+        leitos=LR*Yinfectados
         
-        #lines(x,hospitalizados_12pc, col="dark blue")
-        #lines(x,leitos_5pc, col="light blue")
+        #lines(x,hospitalizados, col="dark blue")
+        #lines(x,leitos, col="light blue")
         
         #ponto de inflexão
         infl <- c(FALSE, diff(diff(Yinfectados)>0)!=0)
@@ -281,11 +291,11 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           
           
           
-          hospitalizados_12pc=0.12*Yinfectados_r # assume-se que 
-          leitos_5pc=0.05*Yinfectados_r
+          hospitalizados=0.12*Yinfectados_r # assume-se que 
+          leitos=0.05*Yinfectados_r
           
-          #     lines(x,hospitalizados_12pc, col="red")
-          #    lines(x,leitos_5pc, col="orange")
+          #     lines(x,hospitalizados, col="red")
+          #    lines(x,leitos, col="orange")
           
           #ponto de inflexão
           infl <- c(FALSE, diff(diff(Yinfectados_r)>0)!=0)
@@ -462,8 +472,8 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
                             Day=x, Casos_conf_azul=y, Casos_conf_lar=c(rep(0,DIAR ),yr[1:(length(yr)-DIAR)]),
                             Infectados_azul=Yinfectados, Infectados_lar=c(rep(0,DIAR ),Yinfectados[1:(length(Yinfectados_r)-DIAR)]), 
                             Recuperados_azul=Yrecup, Recuperados_lar=c(rep(0,DIAR ),Yrecup_r[1:(length(Yrecup_r)-DIAR)]),
-                            hospitalizados=c(rep(0,DIAR ),hospitalizados_12pc[1:(length(hospitalizados_12pc)-DIAR)]), 
-                            leitos=c(rep(0,DIAR ),leitos_5pc[1:(length(leitos_5pc)-DIAR)]))
+                            hospitalizados=c(rep(0,DIAR ),hospitalizados[1:(length(hospitalizados)-DIAR)]), 
+                            leitos=c(rep(0,DIAR ),leitos[1:(length(leitos)-DIAR)]))
         
         TABELA_todos=rbind(TABELA_todos,TABELA_REGION)
       } # loop Tabela

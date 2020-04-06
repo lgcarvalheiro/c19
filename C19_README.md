@@ -61,6 +61,7 @@ C19Proj_function(Data.Table=DATA,
 #TIPO_PAINEL # OPTIONS: "Region" (DEFAULT); "Group", if "Region" it will generate a Figure with 9 graphs; if "REGION" it will generate a Figure with as many graphs as 'those 'REGIONs' in the data table (max of 4) 
 #YLIM_prop # 0.75 (DEFAULT) constant to define YLIM for peak graphs (proportion of K) 
 
+#R0e  # if ROe=T estimates of R0 (using ML and Bayesian methods) and current growth rate will be calculated based on both models (all points; only using points starting in D2) and plotted in short term and long term graphs
 ## REPORT TABLE PARAMETERS
 #################################
 #Report Table # OPTIONS: F (DEFAULT - Table is not generated), T (Table is generated)

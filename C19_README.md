@@ -8,20 +8,19 @@ REGIONS.info_i= read.table(file.choose(), header=T, sep="\t")
 REGIONS.info=REGIONS.info_i[REGIONS.info_i$REGION=="GO",]
 
 
-C19Proj_function(Data.Table=DATA,               #Table with info on number of cases
-                 Tabela.info=REGIONS.info,      #Table with information on Date of 1st case, starting day for 2nd model, pop density 
-                 DIAS_REC=14,                   #Average number of days for cases to be solved (cured or dead); 14 is the default assuming that with proper medicine deaths will be avoided 
-                 NOT=0.14,                      ##0.14 (DEFAULT) proportion of infected people that are known (notified) Li et al. 2020 10.1126/science.abb3221 (86% subnotificacao)
-                 POPAFE=0.44,                   #0.44 (DEFAULT) #proportion of the total population that is thought to be infected in the end of the epidemy
-                 HR=0.1,                        #HR - proportion of infected people (reported cases) that need hospitalization
-                 LR=0.025,                      #LR - proportion of infected people (reported cases) that need intensive care
-                 R0e=F,                         # if R0e=T estimates of R0e (using ML and Bayesian methods) and current growth rate will be extracted from the model 
-                 TIPO_GRAFICO="curto.prazo",    #OPTIONS: "curto.prazo"; "longo.prazo"; "picos" (DEFAULT), if "curto.prazo" short term graphs for the first 60 days will be generated presenting estimates of R0 current growth rate, inflexion point date (peak of epidemy), date for reaching max number of cases (end of epidemy)
-                 TIPO_PAINEL="Region",         #TIPO_PAINEL # OPTIONS: "Region" (DEFAULT); "Group", if "Region" it will generate a Figure with 9 graphs; if "REGION" it will generate a 
-                 YLIM_prop=0.75,               # 0.75 (DEFAULT) constant to define YLIM for peak graphs (proportion of K)
-                 ReportTable=F,                # OPTIONS: F (DEFAULT - Table is not generated), T (Table is generated)
-                 TableFile="ReportTable.txt")  # path and name of file to be generated
-  
+C19Proj_function(Data.Table=DATA,               
+                 Tabela.info=REGIONS.info,     
+                 DIAS_REC=14,                   
+                 NOT=0.14,                      
+                 POPAFE=0.44,                   
+                 HR=0.1,                        
+                 LR=0.025,                      
+                 R0e=F,                         
+                 TIPO_GRAFICO="curto.prazo",    
+                 TIPO_PAINEL="Region",         
+                 YLIM_prop=0.75,               
+                 ReportTable=F,                
+                 TableFile="ReportTable.txt")  
 
 #############################################
 
@@ -49,8 +48,8 @@ C19Proj_function(Data.Table=DATA,               #Table with info on number of ca
 
 ## CONSTANTS to define number of hospitalized people, and number of critical cases
 #############################################################################################################################
-
-
+#HR - proportion of infected people (reported cases) that need hospitalization
+#LR - proportion of infected people (reported cases) that need intensive care
 
 ## CONSTANTS to estimate number of infected people in a given date (acumulated number of infected people - solved cases)
 ############################################################################################################################

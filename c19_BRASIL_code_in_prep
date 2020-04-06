@@ -162,7 +162,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         if(R0e==T){
          ER0r <- estimate.R(epid=round(yr,0), GT=mGT, methods=c("ML","SB"))
         R0r=ER0r$estimates$ML$R
-        R0rb=mean(ER0$estimates$SB$R)
+        R0rb=mean(ER0r$estimates$SB$R)
         }
         
         

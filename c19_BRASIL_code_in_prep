@@ -458,7 +458,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
             line=0, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
       mtext(paste("Proporção da população total afetada - ", round(POPAFE*100,1), "% (source: imperial college report 12)"), 
             line=1, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
-      mtext(paste("Proporção de casos notificados - ", NOT, "% (source: Li et al 2020)"), 
+      mtext(paste("Proporção de casos notificados - ", round(NOT*100,1), "% (source: Li et al 2020)"), 
             line=2, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
       
  #     mtext(paste("margem de erro de datas estimadas baseada em variação de capacidade de suporte (K) "), 

@@ -47,12 +47,12 @@ C19Proj_function(Data.Table=DATA,
 
 
 ## CONSTANTS to define number of hospitalized people, and number of critical cases
-#############################################################################################################################
+##################################################################################
 #HR - proportion of infected people (reported cases) that need hospitalization
 #LR - proportion of infected people (reported cases) that need intensive care
 
 ## CONSTANTS to estimate number of infected people in a given date (acumulated number of infected people - solved cases)
-############################################################################################################################
+#################################################################################
 #DIAS_REC # DEFAULT=14; average time for cases to be solved (cured or death)
 
 ## GRAPH PRESENTATION PARAMETERS

@@ -420,7 +420,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           
           mtext(paste("COVID19 - progressão de casos confirmados (acumulados)"), 
                 line=3, side=3, outer=TRUE, cex=1.1, adj = 0, font=2 )
-          mtext(paste("Modelo de crescimento logístico (K= ", PROPPOP*100, "% da população do estado) ajustado por max verossimilhança"), 
+          mtext(paste("Modelo de crescimento logístico ajustado por max verossimilhança"), 
                 line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1 )
           mtext(paste("Linha azul usa todos os pontos para gerar modelo"), 
                 line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )

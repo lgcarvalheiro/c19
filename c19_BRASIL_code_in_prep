@@ -470,8 +470,10 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         
         TABELA_REGION=cbind(REGION=rep(REGION, length(x)), Data= Data2,
                             Day=x, Casos_conf_azul=y, Casos_conf_lar=c(rep(0,DIAR ),yr[1:(length(yr)-DIAR)]),
-                            Infectados_azul=Yinfectados, Infectados_lar=c(rep(0,DIAR ),Yinfectados[1:(length(Yinfectados_r)-DIAR)]), 
-                            Recuperados_azul=Yrecup, Recuperados_lar=c(rep(0,DIAR ),Yrecup_r[1:(length(Yrecup_r)-DIAR)]),
+                            Infectados_azul=Yinfectados, 
+                            Infectados_lar=c(rep(0,DIAR ),Yinfectados_r[1:(length(Yinfectados_r)-DIAR)]), 
+                            Recuperados_azul=Yrecup, 
+                            Recuperados_lar=c(rep(0,DIAR ),Yrecup_r[1:(length(Yrecup_r)-DIAR)]),
                             hospitalizados=c(rep(0,DIAR ),hospitalizados[1:(length(hospitalizados)-DIAR)]), 
                             leitos=c(rep(0,DIAR ),leitos[1:(length(leitos)-DIAR)]))
         

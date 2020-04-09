@@ -6,8 +6,6 @@
 #######################################################################
 ### required packages
 #######################################################################
-library(MASS)
-library(visreg)
 library(R0)
 
 ######################################################################
@@ -55,7 +53,11 @@ inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
 
 ## GRAPH PRESENTATION PARAMETERS
 #################################
-# TIPO_GRAFICO #OPTIONS: "curto.prazo"; "longo.prazo"; "picos" (DEFAULT), if "curto.prazo" short term graphs for the first 60 days will be generated presenting estimates of R0 current growth rate, inflexion point date (peak of epidemy), date for reaching max number of cases (end of epidemy)  
+# TIPO_GRAFICO #OPTIONS: "curto.prazo"; # if "curto.prazo" short term graphs for the first 60 days will be generated presenting estimates of R0 current growth rate, inflexion point date (peak of epidemy), date for reaching max number of cases (end of epidemy)
+                       # "longo.prazo"; 
+                       # "picos" (DEFAULT), # this will present the curve of infected people per day (accumulated infected people - resolved cases)
+                       # "leitos"           # this will present the progression of hospitalized people and demand of intensive care beds according to HR and LR
+                                                                                      
 # TIPO_PAINEL # OPTIONS: "Region" (DEFAULT); "Group", if "Region" it will generate a Figure with 9 graphs; if "REGION" it will generate a Figure with as many graphs as 'those 'REGIONs' in the data table (max of 4) 
 # YLIM_prop # 0.75 (DEFAULT) constant to define YLIM for peak graphs (proportion of K) 
 
@@ -72,7 +74,8 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
   TABELA_todos=c(REGION="dummy", Data=0, Day=0, Casos_conf_azul=0, Casos_conf_lar=0,
                  Infectados_azul=0, Infectados_lar=0, 
                  Recuperados_azul=0, Recuperados_lar=0,
-                 hospitalizados=0, leitos=0)
+                 hospitalizados_azul=0, leitos_azul=0,
+                 hospitalizados_lar=0, leitos_lar=0)
   
   #generation time used to calculate R0
   mGT<-generation.time("gamma", c(5.0, 1.9)) # values taken from Ferreti et al. 2020
@@ -109,24 +112,9 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
       ASSIMPTOTA=PROPPOP*POPULAÇÃO
       # para gráficos de previsão de 50 dias
       
-      if(TIPO_GRAFICO=="curto.prazo") {
-        YLIM=4000
-        XLIM=80
-      } else if (TIPO_GRAFICO=="longo.prazo"){
-        
-        YLIM=ASSIMPTOTA*1.1
-        XLIM=150
-      } else if (TIPO_GRAFICO=="picos"){
-        
-        YLIM=ASSIMPTOTA*YLIM_prop
-        XLIM=150
-      }
-      
-      
-      if(nrow(DATA[DATA$REGION==REGION,])<10) {COLR="white"} else {COLR="white"} 
-      
-      
-      mdf=glm(log(Cases/(ASSIMPTOTA-Cases)) ~Day, data=DATA[DATA$REGION==REGION,])
+
+      TABAN=DATA[DATA$REGION==REGION,]
+      mdf=glm(log(Cases/(ASSIMPTOTA-Cases)) ~Day, data=TABAN[1:min(nrow(TABAN),DIAR+15),])
       
       
       
@@ -170,6 +158,23 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         
       }
       
+
+      
+      if(TIPO_GRAFICO=="curto.prazo") {
+        YLIM=4000
+        XLIM=80
+      } else if (TIPO_GRAFICO=="longo.prazo"){
+        
+        YLIM=ASSIMPTOTA*1.1
+        XLIM=150
+      } else if (TIPO_GRAFICO=="picos"){
+        
+        YLIM=ASSIMPTOTA*YLIM_prop
+        XLIM=150
+      }
+      
+      
+      if(nrow(DATA[DATA$REGION==REGION,])<10) {COLR="white"} else {COLR="white"} 
       
       hospitalizados=rep("NA",length(x)) #0.081
       leitos=rep("NA",length(x))
@@ -193,16 +198,16 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         Function_mdf = function(x) ASSIMPTOTA/(1+1/exp(I+S*x))
         xpico= inverseFun(y = ASSIMPTOTA*0.99, Function_mdf, extendInt="yes")$root
         Dpico=D1 +xpico
-        text(1, YLIM*0.7, paste(Dpico, "±7dias (max)"), cex =.8, col="dark blue",adj=0)
+        text(1, YLIM*0.7, paste(Dpico, "±7dias (max)"), cex =.9, col="dark blue",adj=0)
  
                
         if(R0e==T){
-        text(1, 0.98*YLIM, paste("R0ml=", round(R0,2),"; R0b=", round(R0b,2), "; TxC atual = ", round(TxC,2)), cex =.8, col="dark blue", adj=0)
+        text(1, 0.98*YLIM, paste("R0ml=", round(R0,2),"; R0b=", round(R0b,2), "; TxC atual = ", round(TxC,2)), cex =0.9, col="dark blue", adj=0)
         }
         
         # qual o numero total de infectados?
         NIt=ASSIMPTOTA/(1+1/exp(I+S*xpico))
-        text(1, 0.85*YLIM, paste(round(NIt,0), " (casos)"), cex =.8, col="dark blue", adj=0)
+        text(1, 0.85*YLIM, paste(round(NIt,0), " (casos)"), cex =0.9, col="dark blue", adj=0)
         
         #######################################
         if (Sys.Date()-DIAR1>=7){
@@ -214,10 +219,10 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           Function_mdfr = function(xr) ASSIMPTOTA/(1+1/exp(Ir+Sr*xr))
           xpicor= inverseFun(y = ASSIMPTOTA*0.99, Function_mdfr, extendInt="yes")$root
           Dpicor=D1 +xpicor
-          text(150, YLIM*0.7, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark orange",adj=1)
+          text(150, YLIM*0.7, paste(Dpicor, "±7dias (max)"), cex =.9, col="dark orange",adj=1)
           
           if(R0e==T){
-          text(150, 0.98*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCr,2)), cex =.8, col="dark orange", adj=1)
+          text(150, 0.98*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCr,2)), cex =0.9, col="dark orange", adj=1)
           }
           
 
@@ -259,19 +264,13 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         Yinfectados=y-Yrecup
         lines(x, Yinfectados, col="blue", lty=2)
         
-        hospitalizados=HR*Yinfectados # assume-se que 
-        leitos=LR*Yinfectados
-        
-        #lines(x,hospitalizados, col="dark blue")
-        #lines(x,leitos, col="light blue")
-        
         #ponto de inflexão
         infl <- c(FALSE, diff(diff(Yinfectados)>0)!=0)
         
         DATA_INF=x[which(infl == TRUE)[[1]]]
         
         INFL_D=1+D1 +DATA_INF
-        text(1, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, 
+        text(1, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.9, 
              col="dark blue", adj=0)
         
         if (Sys.Date()-DIAR1>=7){
@@ -291,19 +290,13 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           
           
           
-          hospitalizados=0.12*Yinfectados_r # assume-se que 
-          leitos=0.05*Yinfectados_r
-          
-          #     lines(x,hospitalizados, col="red")
-          #    lines(x,leitos, col="orange")
-          
           #ponto de inflexão
           infl <- c(FALSE, diff(diff(Yinfectados_r)>0)!=0)
           
           DATA_INF=x[which(infl == TRUE)[[1]]]
           
           INFL_D=D1+1+DIAR+DATA_INF
-          text(150, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, col="dark orange", adj=1)
+          text(150, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.9, col="dark orange", adj=1)
           
           
           
@@ -314,19 +307,104 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
       
       
       
+      ##############################################
+      ################   PICOS   LEITOS  ###############
+      ###########################################################
+      
+      if(TIPO_GRAFICO=="leitos"|TIPO_PAINEL=="Region") {
+        YLIM=ASSIMPTOTA*0.08
+        XLIM=150
+        
+        REGION=as.character(REGIONS.info$REGION[i])
+        if(TIPO_PAINEL=="Region"){
+          with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main="",xaxt = "n", ylab="Número de infectados",
+                                                xlab="", col="white"))
+        }  else {
+          with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", 
+                                                xlab="", col="white"))}
+        
+        
+        LAB=seq(as.Date(D1),as.Date(D1)+210,by="14 days")
+        LAB=format(LAB, format="%b %d")
+        axis(1, at=seq(from = 1, to = 211, by = 14), labels=LAB)
+        # ?axis
+        
+        
+        # alteração de intercepto correspondente a adiantamento de 14 dias (tempo médio de recuperação ou morte, aqui assume-se que o tempo é igual)
+        Yrecup=ASSIMPTOTA/(1+1/exp((I-DIAS_REC*S)+S*x)) 
+        #  lines(x, Yrecup, col="blue", lty=2)
+        
+        Yinfectados=y-Yrecup
+       # lines(x, Yinfectados, col="blue", lty=2)
+        
+        hospitalizados=HR*Yinfectados # assume-se que 
+        leitos=LR*Yinfectados
+        
+        lines(x,hospitalizados, col="dark blue")
+        lines(x,leitos, col="light blue")
+        
+        #ponto de inflexão
+        infl <- c(FALSE, diff(diff(Yinfectados)>0)!=0)
+        
+        DATA_INF=x[which(infl == TRUE)[[1]]]
+        
+        INFL_D=1+D1 +DATA_INF
+        text(1, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.9, 
+             col="dark blue", adj=0)
+        
+        if (Sys.Date()-DIAR1>=7){
+          #  lines(xr,yr, col="dark orange", lty=2)
+          
+          # qual a data em que ser´o pico?
+          
+          
+          
+          # alteração de intercepto correspondente a adiantamento de 14 dias (tempo médio de recuperação ou morte, aqui assume-se que o tempo é igual)
+          Yrecup_r=ASSIMPTOTA/(1+1/exp((Ir-DIAS_REC*Sr)+Sr*xr)) 
+          # 
+          #  lines(x, Yrecup, col="blue", lty=2)
+          
+          Yinfectados_r=yr-Yrecup_r
+        #  lines(xr, Yinfectados_r, col="orange", lty=2)
+          
+          
+          
+          hospitalizados_r=HR*Yinfectados_r # assume-se que 
+          leitos_r=LR*Yinfectados_r
+          
+               lines(x,hospitalizados_r, col="red")
+              lines(x,leitos_r, col="orange")
+          
+          #ponto de inflexão
+          infl <- c(FALSE, diff(diff(Yinfectados_r)>0)!=0)
+          
+          DATA_INF=x[which(infl == TRUE)[[1]]]
+          
+          INFL_D=D1+1+DIAR+DATA_INF
+          text(150, 0.75*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.9, col="dark orange", adj=1)
+          
+          
+          
+        } # laranja pico
+        
+      } # pico  leitos
+      
+      
       ####CURTO PRAZO
       ##################
       #par(mfrow=c(1,1))
       
       if(TIPO_GRAFICO=="curto.prazo"|TIPO_PAINEL=="Region") {
         
-        YLIM=4000
-        XLIM=80 
         
         REGION=as.character(REGIONS.info$REGION[i])
         #par(mfrow=c(1,1))
         if(TIPO_PAINEL=="Group") {
-          with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", 
+          TAB= DATA[DATA$REGION==REGION,]
+          YLIM=5000
+          XLIM=120
+          
+          with(TAB, plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main=REGION[1],xaxt = "n", 
                                                 xlab=""))
         } else { with(DATA[DATA$REGION==REGION,], plot(Cases~Day, ylim=c(0,YLIM), xlim=c(0,XLIM), main="",xaxt = "n", ylab="Casos confirmados",
                                                        xlab=""))}
@@ -339,24 +417,24 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         lines(x,y, col="blue")
         
         if(R0e==T){
-        text(1, 0.98*YLIM, paste("R0ml=", round(R0,2), "R0b=", round(R0b,2), "; TxC atual = ", round(TxC,2)), cex =.7, col="dark blue", adj=0)
+        text(1, 0.95*YLIM, paste("R0ml=", round(R0,2), "R0b=", round(R0b,2), "; TxC atual = ", round(TxC,2)), cex =.9, col="dark blue", adj=0)
         }
         
         # qual a data em que ser´o pico?
         Function_mdf = function(x) ASSIMPTOTA/(1+1/exp(I+S*x))
         xpico= inverseFun(y = ASSIMPTOTA*0.99, Function_mdf, extendInt="yes")$root
         Dpico=as.Date(D1, "%d,%m,%y") +round(xpico,0)
-        text(1, YLIM*0.9, paste(Dpico, "±7dias (max)"), cex =.8, col="blue",adj=0)
+       # text(1, YLIM*0.9, paste(Dpico, "±7dias (max)"), cex =.9, col="blue",adj=0)
         
         
         # qual a data em que haverá N doentes?
-        x2000=  (log(2000/(ASSIMPTOTA-2000))-I)/S
-        D2000=D1 +x2000
-        text(1, YLIM*0.8, paste(D2000, " (2000casos)"), cex =.8, col="blue",adj=0)
+       # x2000=  (log(2000/(ASSIMPTOTA-2000))-I)/S
+      #  D2000=D1 +x2000
+       # text(1, YLIM*0.8, paste(D2000, " (2000casos)"), cex =.9, col="blue",adj=0)
         
-        x1000=  (log(1000/(ASSIMPTOTA-1000))-I)/S
-        D1000=D1 +x1000
-        text(1, YLIM*0.7, paste(D1000, " (1000casos)"), cex =.8, col="blue",adj=0)
+      #  x1000=  (log(1000/(ASSIMPTOTA-1000))-I)/S
+      #  D1000=D1 +x1000
+      #  text(1, YLIM*0.7, paste(D1000, " (1000casos)"), cex =.9, col="blue",adj=0)
         
         #ponto de inflexão
         Yrecup=ASSIMPTOTA/(1+1/exp((I-DIAS_REC*S)+S*x)) 
@@ -366,7 +444,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
         DATA_INF=x[which(infl == TRUE)[[1]]]
         
         INFL_D=1+D1 +DATA_INF
-        text(1, 0.6*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, 
+        text(1, 0.85*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.9, 
              col="dark blue", adj=0)
         
         
@@ -375,7 +453,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           lines(xr,yr, col="dark orange", lty=2)
          
           if(R0e==T){
-           text(80, 0.98*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCr,2)), cex =.7, col="dark orange", adj=1)
+           text(XLIM-0.05*XLIM, 0.2*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCr,2)), cex =.9, col="dark orange", adj=1)
           }
           # qual a data em que ser´o pico?
           
@@ -383,17 +461,17 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           Function_mdfr = function(xr) ASSIMPTOTA/(1+1/exp(Ir+Sr*xr))
           xpicor= inverseFun(y = ASSIMPTOTA*0.99, Function_mdfr, extendInt="yes")$root
           Dpicor=D1 +xpicor
-          text(80, YLIM*0.9, paste(Dpicor, "±7dias (max)"), cex =.8, col="dark orange",adj=1)
+        #  text(80, YLIM*0.9, paste(Dpicor, "±7dias (max)"), cex =.9, col="dark orange",adj=1)
           
           # qual a data em que haverá N doentes?
           
-          x2000=  (log(2000/(ASSIMPTOTA-2000))-Ir)/Sr
-          D2000=D1 +x2000
-          text(80, 0.8*YLIM, paste(D2000, " (2000casos)"), cex =.8, col="dark orange", adj=1)
+      #    x2000=  (log(2000/(ASSIMPTOTA-2000))-Ir)/Sr
+      #    D2000=D1 +x2000
+      #    text(80, 0.8*YLIM, paste(D2000, " (2000casos)"), cex =.9, col="dark orange", adj=1)
           
-          x1000=  (log(1000/(ASSIMPTOTA-1000))-Ir)/Sr
-          D1000=D1 +x1000
-          text(80, 0.7*YLIM, paste(D1000, " (1000casos)"), cex =.8, col="dark orange", adj=1)
+      #    x1000=  (log(1000/(ASSIMPTOTA-1000))-Ir)/Sr
+      #    D1000=D1 +x1000
+      #    text(80, 0.7*YLIM, paste(D1000, " (1000casos)"), cex =.9, col="dark orange", adj=1)
           
           #ponto de inflexão
           Yrecup_r=ASSIMPTOTA/(1+1/exp((Ir-DIAS_REC*Sr)+Sr*xr)) 
@@ -403,7 +481,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           DATA_INF=x[which(infl == TRUE)[[1]]]
           
           INFL_D=D1+1+DIAR+DATA_INF
-          text(80, 0.6*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =.8, col="dark orange", adj=1)
+          text(XLIM-0.05*XLIM, 0.1*YLIM, paste(INFL_D, " (ponto de inflexão)"), font=2,cex =0.9, col="dark orange", adj=1)
           
         } # laranja curta duração
         
@@ -422,13 +500,13 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
                 line=3, side=3, outer=TRUE, cex=1.1, adj = 0, font=2 )
           mtext(paste("Modelo de crescimento logístico ajustado por max verossimilhança"), 
                 line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1 )
-          mtext(paste("Linha azul usa todos os pontos para gerar modelo"), 
+          mtext(paste("Linha azul usa dados até 15 dias após implementação de medidas de isolamento para gerar modelo"), 
                 line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )
-          mtext(paste("Linha laranja usa apenas dias com mais de 50 casos para gerar modelo (mínimo 8 pontos)"), 
+          mtext(paste("Linha laranja usa apenas dias após medidas de isolamento e com mais de 50 casos para gerar modelo (mínimo 8 pontos)"), 
                 line=0, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="dark orange" )
           #  mtext(paste("seta vermelha indica data de restrições ao comércio"), 
           #        line=0, side=1, outer=TRUE, cex=0.8, adj = 1, col="red" )
-          mtext(paste(" Cases confirmados"), 
+          mtext(paste(" Casos confirmados"), 
                 line=1, side=2, outer=TRUE, cex=1,  font=2 )
           
           #  arrows(x0=DIAR, y0=500, x1 = DIAR, y1 =30, col = "red", lty =1,length = 0.1, angle = 20,
@@ -439,7 +517,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
           
           mtext(paste("COVID19 - progressão de número de infectados"), 
                 line=3, side=3, outer=TRUE, cex=1.1, adj = 0, font=2 )
-          mtext(paste("diferença entre casos confirmados e casos resolvidos (recuperados ou mortos) estimados com base em modelos de crescimento logístico para  (K= ", PROPPOP*100, "% da população do Estado)"), 
+          mtext(paste("diferença entre casos confirmados e casos resolvidos (recuperados ou mortos) estimados com base em modelos de crescimento logístico"), 
                 line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1 )
           # mtext(paste("Linha tracejada - infectados; Linha escura - leitos (26% de infectados); Linha clara - leitos (16% de infectados)"), 
           #        line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )
@@ -450,15 +528,34 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
                 line=1, side=2, outer=TRUE, cex=1,  font=2 )
           
         } # legenda picos
+        
+        
+        if(TIPO_GRAFICO=="leitos") {
+          
+          mtext(paste("COVID19 - progressão de número de hospitalizados e leitos UTI"), 
+                line=3, side=3, outer=TRUE, cex=1.1, adj = 0, font=2 )
+       #   mtext(paste("diferença entre casos confirmados e casos resolvidos (recuperados ou mortos) estimados com base em modelos de crescimento logístico"), 
+      #          line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1 )
+          # mtext(paste("Linha tracejada - infectados; Linha escura - leitos (26% de infectados); Linha clara - leitos (16% de infectados)"), 
+          #        line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="blue" )
+          mtext(paste("Linhas azuis usam dados até 15 dias após implementação de medidas de isolamento"), 
+                line=2, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="dark blue" )
+          mtext(paste("Linhas laranja usam apenas dias após implementação de medidas de isolamento para gerar modelo (mínimo 8 pontos)"), 
+                line=1, side=3, outer=TRUE, cex=0.8, adj = 0, font=1, col="dark orange" )
+          mtext(paste(" Número de hospitalizados e leitos UTI"), 
+                line=1, side=2, outer=TRUE, cex=1,  font=2 )
+          
+        } # legenda leitos
+        
       } # end legenda TIPO_GRAFICO=REGION
       
       mtext(paste("Departamento de Ecologia, UFG |",D), 
-            line=0, side=3, outer=TRUE, cex=0.7, adj = 1 )
+            line=0, side=3, outer=TRUE, cex=0.8, adj = 1 )
       mtext(paste("Constantes consideradas no modelo para definir capacidade de suporte (K):"), 
             line=0, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
       mtext(paste("Proporção da população total afetada - ", round(POPAFE*100,1), "%"), 
             line=1, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
-      mtext(paste("Proporção de casos notificados - ", round(NOT*100,1), "% (source: Li et al 2020)"), 
+      mtext(paste("Proporção de casos notificados - ", round(NOT*100,1), "%"), 
             line=2, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
       
  #     mtext(paste("margem de erro de datas estimadas baseada em variação de capacidade de suporte (K) "), 
@@ -468,14 +565,18 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
       if (ReportTable==T){
         Data2= as.character(seq(as.Date(D1), as.Date(D1+length(x)-1), by='days'))
         
-        TABELA_REGION=cbind(REGION=rep(REGION, length(x)), Data= Data2,
-                            Day=x, Casos_conf_azul=y, Casos_conf_lar=c(rep(0,DIAR ),yr[1:(length(yr)-DIAR)]),
+        TABELA_REGION=cbind(REGION=rep(REGION, length(x)), 
+                            Data= Data2,
+                            Day=x, 
+                            Casos_conf_azul=y, 
+                            Casos_conf_lar=c(rep(0,DIAR ),yr[1:(length(yr)-DIAR)]),
                             Infectados_azul=Yinfectados, 
                             Infectados_lar=c(rep(0,DIAR ),Yinfectados_r[1:(length(Yinfectados_r)-DIAR)]), 
-                            Recuperados_azul=Yrecup, 
-                            Recuperados_lar=c(rep(0,DIAR ),Yrecup_r[1:(length(Yrecup_r)-DIAR)]),
-                            hospitalizados=c(rep(0,DIAR ),hospitalizados[1:(length(hospitalizados)-DIAR)]), 
-                            leitos=c(rep(0,DIAR ),leitos[1:(length(leitos)-DIAR)]))
+                            Recuperados_azul=Yrecup, Recuperados_lar=c(rep(0,DIAR ),Yrecup_r[1:(length(Yrecup_r)-DIAR)]),
+                            hospitalizados_azul=hospitalizados, 
+                            leitos_azul=leitos,
+                            hospitalizados_lar=c(rep(0,DIAR ),hospitalizados_r[1:(length(hospitalizados_r)-DIAR)]), 
+                            leitos_lar=c(rep(0,DIAR ),leitos_r[1:(length(leitos_r)-DIAR)]))
         
         TABELA_todos=rbind(TABELA_todos,TABELA_REGION)
       } # loop Tabela
@@ -485,8 +586,7 @@ C19Proj_function = function(Data.Table, Tabela.info, DIAS_REC=14,NOT=0.14, POPAF
   } # loop GROUP
   
   if (ReportTable==T){TABELA_todos=as.data.frame(TABELA_todos[-1,])
-  write.table(TABELA_todos, file=TableFile, sep="\t")
+  write.table(TABELA_todos, file=TableFile, sep="\t",row.names = F)
   } # loop Tabela 
 } #loop function
-
 

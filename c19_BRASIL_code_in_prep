@@ -1,6 +1,7 @@
-##################################################################################
-############ script for predicting accumulated confirmed cases, infected people per day, hospitalized, ICU of COVID19 #####
-############# and simulating changes in social isolation intensity  #####
+##############################################################################################
+############ script for predicting accumulated confirmed cases, infected people per day, #####
+#############             hospitalized, ICU of COVID19                                   #####
+#############   and simulating changes in social isolation intensity                     #####
 ##################################################################################
 ################ Luísa G. Carvalheiro (Departamento de Ecologia, UFG)  ###########
 
@@ -1238,7 +1239,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         if(ISOL>30){ text(length(x), 0.8*YLIM, paste(INFL_D3sxt, " (pt inf 30%isolamento)"), font=2,cex =.85, col="dark green", adj=1)}
         if(ISOL>40){ text(length(x), 0.75*YLIM, paste(INFL_D4sxt, " (pt inf 40%isolamento)"), font=2,cex =.85, col="dark orange", adj=1)}
         if(ISOL>50){ text(length(x), 0.7*YLIM, paste(INFL_D5sxt, " (pt inf 50%isolamento)"), font=2,cex =.85, col="brown", adj=1)}
-        text(length(x), 0.65*YLIM, paste(INFL_Dr, " (pt inf ", ISOL,"%isolamento)"), font=2,cex =.85, col="black", adj=1)
+        text(length(x), 0.65*YLIM, paste(INFL_Dr2, " (pt inf ", ISOL,"%isolamento)"), font=2,cex =.85, col="black", adj=1)
 
       } # pico  
       
@@ -1290,7 +1291,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       } # pico  leitos
       
       
-      ####CURTO PRAZO
+      ####   CURTO PRAZO    #################################################
       ##################
       #par(mfrow=c(1,1))
       
@@ -1338,10 +1339,10 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         if (Sys.Date()-DIAR1>=7){
           lines(x[1:(DIAR)],y[1:(DIAR)], col="blue", lty=2)
           lines(xr[(DIAR+1):(DIFD1D3)],yr[(DIAR+1):(DIFD1D3)], col="red", lty=2)
-          lines(xr2[(DIFD1D3+1):length(xr2)],yr[(DIFD1D3+1):length(xr2)], col="dark orange", lty=2)
+          lines(xr2[(DIFD1D3+1):length(xr2)],yr2[(DIFD1D3+1):length(xr2)], col="dark orange", lty=2)
           
           if(R0e==T){
-           text(XLIM-0.05*XLIM, 0.2*YLIM, paste("R0ml=", round(R0r2,2),"R0b=", round(R0r2b,2), "; TxC atual = ", round(TxCr,2)), cex =.9, col="dark orange", adj=1)
+           text(XLIM-0.05*XLIM, 0.2*YLIM, paste("R0ml=", round(R0r2,2),"R0b=", round(R0r2b,2), "; TxC atual = ", round(TxCr2,2)), cex =.9, col="dark orange", adj=1)
           }
           # qual a data em que ser´o pico?
           

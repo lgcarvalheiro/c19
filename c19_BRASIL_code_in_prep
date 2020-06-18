@@ -20,6 +20,11 @@ inverseFun = function(y, fun, interval = c(-1e2, 1e2), ...) {
   uniroot(f, interval, .y = y, .fun = fun, ...)
 }
 
+
+
+
+
+
 ######################################################################
 #### FUNCTION to generate graphs (short term, long term, peaks)
 #######################################################################
@@ -296,8 +301,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       D3=as.Date(REGIONS.info$D3_Trap[i] ,"%d/%m/%y")
       D4=as.Date(REGIONS.info$D4_Relax[i] ,"%d/%m/%y")
       DIAR1=as.Date(REGIONS.info$D2[i],"%d/%m/%y")
-      DIAR=as.numeric(as.character(as.data.frame(
-        as.Date(REGIONS.info$D2[i],"%d/%m/%y")-as.Date(REGIONS.info$D1[i],"%d/%m/%y"))))
+      DIAR=as.numeric(as.character(as.data.frame(as.Date(REGIONS.info$D2[i],"%d/%m/%y")-as.Date(REGIONS.info$D1[i],"%d/%m/%y"))))
       if (   DATA3==TRUE){
         DIFD1D3=as.numeric(as.character(as.data.frame(
         as.Date(REGIONS.info$D3[i],"%d/%m/%y")-as.Date(REGIONS.info$D1[i],"%d/%m/%y"))))
@@ -314,22 +318,44 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
           as.Date(REGIONS.info$D3[i],"%d-%m-%y")-as.Date(REGIONS.info$D1[i],"%d-%m-%y"))))
         }
       }
+      
+      if(DIAR<0){stop("error message: D2 should be after D1")}
+      
       POPULAÇÃO=REGIONS.info$POPULATION[i]
       ASSIMPTOTA=PROPPOP*POPULAÇÃO
-      # para gráficos de previsão de 50 dias
+
+      ####################################################################
+      ###### FUNCTION to create logist link function
+      #####################################################################
+      vlog <- function() {
+        ## link
+        linkfun <- function(y) log(y/(ASSIMPTOTA-y))
+        ## inverse link
+        linkinv <- function(eta) ASSIMPTOTA/(1+1/(exp(eta))) 
+        ## derivative of invlink wrt eta
+        mu.eta <- function(eta) { ASSIMPTOTA * (exp(eta)/(exp(eta))^2)/(1 + 1/exp(eta))^2 }
+        valideta <- function(eta) TRUE
+        link <- "log(y/(ASSIMPTOTA-y))"
+        structure(list(linkfun = linkfun, linkinv = linkinv,
+                       mu.eta = mu.eta, valideta = valideta, 
+                       name = link),
+                  class = "link-glm")
+      }
       
       
-      TABAN0=DATA[DATA$REGION==REGION&DATA$Cases>0,]
-      TABAN0=TABAN0[order(as.Date(TABAN0$Date)),]
+      
+      TABAN0=unique(DATA[DATA$REGION==REGION&DATA$Cases>0,])
+    TABAN0=TABAN0[order(as.Date(TABAN0$Date)),]
 
       TABAN0$Day=1:nrow(TABAN0)
       
       #define start of blue line (no isolation)
       D1ana=TABAN0[as.Date(TABAN0$Date)==D1,]$Day
-      TABAN=TABAN0[TABAN0$Day>D1ana,]
+      TABAN=TABAN0[TABAN0$Day>=D1ana,]
       TABAN$Day=1:nrow(TABAN)
       
       mdf=glm(log(Cases/(ASSIMPTOTA-Cases)) ~Day, data=TABAN[1:min(nrow(TABAN),DIAR+MVD),])
+    #  mdf=glm(Cases ~Day, data=TABAN[1:min(nrow(TABAN),DIAR+MVD),],family = poisson(link=vlog2()))
       
       
       
@@ -338,18 +364,18 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       S=COEF[2,1]
       
       x=1:XLIMlp
-      y=ASSIMPTOTA/(1+1/exp(I+S*x)) #infectados acumulados
+      y=ASSIMPTOTA/(1+1/exp(I+S*x)) #accumulated number of infected people
       
-      #novos infectados
+      #new people infected per day
       yA=c(y[1],y[1:(length(y)-1)])
       infectados_novos=y-yA
       
-      #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
-      # alteração de intercepto correspondente a adiantamento de 14 dias (tempo médio de recuperação ou morte, aqui assume-se que o tempo é igual)
-      Yrecup=c(rep(0, DIAS_REC),(1-DR)*(ASSIMPTOTA/(1+1/exp((I-DIAS_REC*S)+S*x[(DIAS_REC+1):length(x)])))) # Yrecuperados acumulados
-      Ymort=c(rep(0, DIAS_MORT),(DR)*(ASSIMPTOTA/(1+1/exp((I-DIAS_MORT*S)+S*x[(DIAS_MORT+1):length(x)])))) # Yrecuperados acumulados
+      #### RECOVERED, IFECTED, INFLECTION POINT, HOSPITALIZED, IC BEDS
+      # change in intercept adjusted to DIAS_REC and DIAS_MORT(average number of days for recovery or death)
+      Yrecup=c(rep(0, round(DIAS_REC, 0)),(1-DR)*(ASSIMPTOTA/(1+1/exp((I-DIAS_REC*S)+S*x[(round(DIAS_REC, 0)+1):length(x)])))) # Yrecuperados acumulados
+      Ymort=c(rep(0, round(DIAS_MORT,0)),(DR)*(ASSIMPTOTA/(1+1/exp((I-DIAS_MORT*S)+S*x[(round(DIAS_MORT,0)+1):length(x)])))) # Yrecuperados acumulados
       
-      Yinfectados=y-Yrecup-Ymort # infectados no dia
+      Yinfectados=round(y-Yrecup-Ymort,10) # infectados no dia
       MORTd=Ymort-c(Ymort[1],Ymort[1:(length(Ymort)-1)]) #mortos no dia
       RECUPd=Yrecup-c(Yrecup[1],Yrecup[1:(length(Yrecup)-1)])#recuperados no dia
       
@@ -385,11 +411,15 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       TB=DATA[DATA$REGION==REGION,]
       TxC=(y[nrow(TB)]-y[nrow(TB)-1])/(y[nrow(TB)-1]-y[nrow(TB)-2])
       
-      
+      CHECK=ASSIMPTOTA-TABAN$Cases
+      if(length(CHECK[CHECK<=0])>0) warning('Number of Cases higher than defined maximum population affected. Adjust NOT and POPAFE values')
+
       # com isolamento mas sem testes rápidos (dados usados sao desde o dia de isolamento + MVD
       if(Sys.Date()-DIAR1>=7){
 
         mdfr=glm(log(Cases/(ASSIMPTOTA-Cases)) ~Day, data=TABAN[TABAN$REGION==REGION&(TABAN$Day>(DIAR+MVD)),])
+      #  mdfr=glm(Cases ~Day, data=TABAN[TABAN$REGION==REGION&(TABAN$Day>(DIAR+MVD)),],family = poisson(link=vlog2()))
+        
         
         COEFr=summary(mdfr)$coefficients
         Ir=COEFr[1,1]
@@ -419,13 +449,14 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         #Yrecup_r=(1-DR)*(ASSIMPTOTA/(1+1/exp((Ir-DIAS_REC*Sr)+Sr*xr))) 
         #Ymort_r=    DR*(ASSIMPTOTA/(1+1/exp((Ir-DIAS_MORT*Sr)+Sr*xr))) # Yrecuperados acumulados
    
+            yraux=c(rep(0, DIAR), ASSIMPTOTA/(1+1/exp(Ir+Sr*xr[(DIAR+1):length(xr)]))) # linha 
         
         Yrecup_r=c(rep(0, DIAR),(1-DR)*(ASSIMPTOTA/(1+1/exp((Ir-DIAS_REC*Sr)+Sr*xr[(DIAR+1):length(xr)])))) # Yrecuperados acumulados
         Ymort_r=c(rep(0, DIAR),(DR)*(ASSIMPTOTA/(1+1/exp((Ir-DIAS_MORT*Sr)+Sr*xr[(DIAR+1):length(xr)])))) # Yrecuperados acumulados
         Yrecup_r[1:(DIAR+DIAS_REC)]=rep(0, DIAR+DIAS_REC)
         Ymort_r[1:(DIAR+DIAS_MORT)]=rep(0, DIAR+DIAS_MORT)
         
-        Yinfectados_r=yraux-Yrecup_r-Ymort_r # infectados no dia
+        Yinfectados_r=round(yraux-Yrecup_r-Ymort_r,10) # infectados no dia
         MORTdr=Ymort_r-c(Ymort_r[1],Ymort_r[1:(length(Ymort_r)-1)]) #mortos no dia
         RECUPdr=Yrecup_r-c(Yrecup_r[1],Yrecup_r[1:(length(Yrecup_r)-1)])#recuperados no dia
         
@@ -450,9 +481,10 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
 ## inicio estimativas usando apenas dados de ponto 3 
 ########################################################################
   if (   DATA3==TRUE){
-          mdfr2=glm(log(Cases/(ASSIMPTOTA-Cases)) ~Day, data=TABAN[TABAN$REGION==REGION&(TABAN$Day>(DIFD1D3+MVD)),])
-
-      
+          mdfr2=glm(log(Cases/(ASSIMPTOTA-Cases)) ~Day, data=TABAN[TABAN$REGION==REGION&(TABAN$Day>(DIFD1D3)),])
+          #mdfr2=glm(Cases ~Day, data=TABAN[TABAN$REGION==REGION&(TABAN$Day>(DIFD1D3+MVD)),],family = poisson(link=vlog2()))
+          
+          
       COEFr2=summary(mdfr2)$coefficients
       Ir2=COEFr2[1,1]
       Sr2=COEFr2[2,1]
@@ -469,7 +501,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         ER0r2 <- estimate.R(epid=round(yr2[(DIFD1D3+1):length(yr2)],0), GT=mGT, methods=c("ML","SB"))
         R0r2=ER0r2$estimates$ML$R
         R0r2b=mean(ER0r2$estimates$SB$R)
-      }
+      } 
       
       
       TxCr2=(yr2[nrow(TB)-DIFD1D3]-yr2[nrow(TB)-DIFD1D3-1])/(yr2[nrow(TB)-DIFD1D3-1]-yr2[nrow(TB)-DIFD1D3-2])
@@ -504,10 +536,28 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         YR=yr2
         IR=Ir2
         SR=Sr2
+        XR=xr2
+        hospitalizados_R=hospitalizados_r2
+        leitos_R=leitos_r2
+        Yinfectados_R=Yinfectados_r2
+        MORTdR=MORTdr2
+        RECUPdR=RECUPdr2   
+        INFL_DR=INFL_Dr2
+        TxCR=TxCr2
+        
       } else {
           YR=yr
           IR=Ir
           SR=Sr
+          XR=xr
+          hospitalizados_R=hospitalizados_r
+          leitos_R=leitos_r
+          Yinfectados_R=Yinfectados_r
+          MORTdR=MORTdr
+          RECUPdR=RECUPdr   
+          INFL_DR=INFL_Dr
+          TxCR=TxCr
+          
           }
         
      ########################################## 
@@ -532,68 +582,68 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       CF_I_1sxt=(I-((I-IR)/ISO)*1)/IR 
       CF_S_1sxt=(S-((S-SR)/ISO)*1)/SR 
       Function_mdf1sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_1sxt*IR        +(CF_S_1sxt*SR)*x))
-      xDRI1sxt= inverseFun(y = yr[DRI], Function_mdf1sxt, extendInt="yes")$root
+      xDRI1sxt= inverseFun(y = YR[DRI], Function_mdf1sxt, extendInt="yes")$root
       xavDRI1sxt=DRI-xDRI1sxt
       #20%
       CF_I_2sxt=(I-((I-IR)/ISO)*2)/IR 
       CF_S_2sxt=(S-((S-SR)/ISO)*2)/SR 
       Function_mdf2sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_2sxt*IR        +(CF_S_2sxt*SR)*x))
-      xDRI2sxt= inverseFun(y = yr[DRI], Function_mdf2sxt, extendInt="yes")$root
+      xDRI2sxt= inverseFun(y = YR[DRI], Function_mdf2sxt, extendInt="yes")$root
       xavDRI2sxt=DRI-xDRI2sxt
       #30%
       CF_I_3sxt=(I-((I-IR)/ISO)*3)/IR 
       CF_S_3sxt=(S-((S-SR)/ISO)*3)/SR 
       Function_mdf3sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_3sxt*IR        +(CF_S_3sxt*SR)*x))
-      xDRI3sxt= inverseFun(y = yr[DRI], Function_mdf3sxt, extendInt="yes")$root
+      xDRI3sxt= inverseFun(y = YR[DRI], Function_mdf3sxt, extendInt="yes")$root
       xavDRI3sxt=DRI-xDRI3sxt
       #40%
       CF_I_4sxt=(I-((I-IR)/ISO)*4)/IR 
       CF_S_4sxt=(S-((S-SR)/ISO)*4)/SR 
       Function_mdf4sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_4sxt*IR        +(CF_S_4sxt*SR)*x))
-      xDRI4sxt= inverseFun(y = yr[DRI], Function_mdf4sxt, extendInt="yes")$root
+      xDRI4sxt= inverseFun(y = YR[DRI], Function_mdf4sxt, extendInt="yes")$root
       xavDRI4sxt=DRI-xDRI4sxt
       #50%
       CF_I_5sxt=(I-((I-IR)/ISO)*5)/IR 
       CF_S_5sxt=(S-((S-SR)/ISO)*5)/SR 
       Function_mdf5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_5sxt*IR        +(CF_S_5sxt*SR)*x))
-      xDRI5sxt= inverseFun(y = yr[DRI], Function_mdf5sxt, extendInt="yes")$root
+      xDRI5sxt= inverseFun(y = YR[DRI], Function_mdf5sxt, extendInt="yes")$root
       xavDRI5sxt=DRI-xDRI5sxt
       
       #5%
       CF_I_0.5sxt=(I-((I-IR)/ISO)*0.5)/IR 
       CF_S_0.5sxt=(S-((S-SR)/ISO)*0.5)/SR 
       Function_mdf0.5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_0.5sxt*IR        +(CF_S_0.5sxt*SR)*x))
-      xDRI0.5sxt= inverseFun(y = yr[DRI], Function_mdf0.5sxt, extendInt="yes")$root
+      xDRI0.5sxt= inverseFun(y = YR[DRI], Function_mdf0.5sxt, extendInt="yes")$root
       xavDRI0.5sxt=DRI-xDRI0.5sxt
       #15%
       CF_I_1.5sxt=(I-((I-IR)/ISO)*1.5)/IR 
       CF_S_1.5sxt=(S-((S-SR)/ISO)*1.5)/SR 
       Function_mdf1.5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_1.5sxt*IR        +(CF_S_1.5sxt*SR)*x))
-      xDRI1.5sxt= inverseFun(y = yr[DRI], Function_mdf1.5sxt, extendInt="yes")$root
+      xDRI1.5sxt= inverseFun(y = YR[DRI], Function_mdf1.5sxt, extendInt="yes")$root
       xavDRI1.5sxt=DRI-xDRI1.5sxt
       #25%
       CF_I_2.5sxt=(I-((I-IR)/ISO)*2.5)/IR 
       CF_S_2.5sxt=(S-((S-SR)/ISO)*2.5)/SR 
       Function_mdf2.5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_2.5sxt*IR        +(CF_S_2.5sxt*SR)*x))
-      xDRI2.5sxt= inverseFun(y = yr[DRI], Function_mdf2.5sxt, extendInt="yes")$root
+      xDRI2.5sxt= inverseFun(y = YR[DRI], Function_mdf2.5sxt, extendInt="yes")$root
       xavDRI2.5sxt=DRI-xDRI2.5sxt
       #35%
       CF_I_3.5sxt=(I-((I-IR)/ISO)*3.5)/IR 
       CF_S_3.5sxt=(S-((S-SR)/ISO)*3.5)/SR 
       Function_mdf3.5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_3.5sxt*IR        +(CF_S_3.5sxt*SR)*x))
-      xDRI3.5sxt= inverseFun(y = yr[DRI], Function_mdf3.5sxt, extendInt="yes")$root
+      xDRI3.5sxt= inverseFun(y = YR[DRI], Function_mdf3.5sxt, extendInt="yes")$root
       xavDRI3.5sxt=DRI-xDRI3.5sxt
       #45%
       CF_I_4.5sxt=(I-((I-IR)/ISO)*4.5)/IR 
       CF_S_4.5sxt=(S-((S-SR)/ISO)*4.5)/SR 
       Function_mdf4.5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_4.5sxt*IR        +(CF_S_4.5sxt*SR)*x))
-      xDRI4.5sxt= inverseFun(y = yr[DRI], Function_mdf4.5sxt, extendInt="yes")$root
+      xDRI4.5sxt= inverseFun(y = YR[DRI], Function_mdf4.5sxt, extendInt="yes")$root
       xavDRI4.5sxt=DRI-xDRI4.5sxt
       #55%
       CF_I_5.5sxt=(I-((I-IR)/ISO)*5.5)/IR 
       CF_S_5.5sxt=(S-((S-SR)/ISO)*5.5)/SR 
       Function_mdf5.5sxt = function(x) ASSIMPTOTA/(1+1/exp( CF_I_5.5sxt*IR        +(CF_S_5.5sxt*SR)*x))
-      xDRI5.5sxt= inverseFun(y = yr[DRI], Function_mdf5.5sxt, extendInt="yes")$root
+      xDRI5.5sxt= inverseFun(y = YR[DRI], Function_mdf5.5sxt, extendInt="yes")$root
       xavDRI5.5sxt=DRI-xDRI5.5sxt
       
       
@@ -657,13 +707,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_0sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    I -xavDRI0sxt*(S)-DIAS_REC*(S)           +(S)*x))) #acumulated number of infected people
+      YRecup_0sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    I -xavDRI0sxt*(S)-DIAS_REC*(S)           +(S)*x))) #acumulated number of infected people
       Ymort_0sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (I)-xavDRI0sxt*(S)-DIAS_MORT*(S)           +(S)*x))) #acumulated number of infected people
       
       
-      Yinfectados_0sxt=y0sxt-Yrecup_0sxt-Ymort_0sxt # infectados no dia
+      Yinfectados_0sxt=y0sxt-YRecup_0sxt-Ymort_0sxt # infectados no dia
       MORTd0sxt=Ymort_0sxt-c(Ymort_0sxt[1],Ymort_0sxt[1:(length(Ymort_0sxt)-1)]) #mortos no dia
-      RECUPd0sxt=Yrecup_0sxt-c(Yrecup_0sxt[1],Yrecup_0sxt[1:(length(Yrecup_0sxt)-1)])#recuperados no dia
+      RECUPd0sxt=YRecup_0sxt-c(YRecup_0sxt[1],YRecup_0sxt[1:(length(YRecup_0sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_0sxt <- c(FALSE, diff(diff(Yinfectados_0sxt)>0)!=0)
@@ -689,13 +739,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_1sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_1sxt*IR -xavDRI1sxt*(CF_S_1sxt*SR)-DIAS_REC*(CF_S_1sxt*SR)           +(CF_S_1sxt*SR)*x))) #acumulated number of infected people
+      YRecup_1sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_1sxt*IR -xavDRI1sxt*(CF_S_1sxt*SR)-DIAS_REC*(CF_S_1sxt*SR)           +(CF_S_1sxt*SR)*x))) #acumulated number of infected people
       Ymort_1sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_1sxt*IR)-xavDRI1sxt*(CF_S_1sxt*SR)-DIAS_MORT*(CF_S_1sxt*SR)           +(CF_S_4sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_1sxt=y1sxt-Yrecup_1sxt-Ymort_1sxt # infectados no dia
+      Yinfectados_1sxt=y1sxt-YRecup_1sxt-Ymort_1sxt # infectados no dia
       MORTd1sxt=Ymort_1sxt-c(Ymort_1sxt[1],Ymort_1sxt[1:(length(Ymort_1sxt)-1)]) #mortos no dia
-      RECUPd1sxt=Yrecup_1sxt-c(Yrecup_1sxt[1],Yrecup_1sxt[1:(length(Yrecup_1sxt)-1)])#recuperados no dia
+      RECUPd1sxt=YRecup_1sxt-c(YRecup_1sxt[1],YRecup_1sxt[1:(length(YRecup_1sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_1sxt <- c(FALSE, diff(diff(Yinfectados_1sxt)>0)!=0)
@@ -711,7 +761,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y1sxt=rep(0,length(x)) 
         Casos_conf_1sxt=rep(0,length(x)) 
         Yinfectados_1sxt=rep(0,length(x))
-        Yrecup_1sxt=rep(0,length(x)) 
+        YRecup_1sxt=rep(0,length(x)) 
         Ymort_1sxt=rep(0,length(x))
         infectados_novos_1sxt=rep(0,length(x))
         hospitalizados_1sxt=rep(0,length(x))
@@ -728,13 +778,17 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
     
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_2sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_2sxt*Ir2 -xavDRI2sxt*(CF_S_2sxt*Sr2)-DIAS_REC*(CF_S_2sxt*Sr2)           +(CF_S_2sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_2sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_2sxt*Ir2)-xavDRI2sxt*(CF_S_2sxt*Sr2)-DIAS_MORT*(CF_S_2sxt*Sr2)           +(CF_S_2sxt*Sr2)*x))) #acumulated number of infected people
+    #  YR=YR
+    #  IR=Ir
+    #  SR=Sr
+      
+      YRecup_2sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_2sxt*IR -xavDRI2sxt*(CF_S_2sxt*SR)-DIAS_REC*(CF_S_2sxt*SR)           +(CF_S_2sxt*SR)*x))) #acumulated number of infected people
+      Ymort_2sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_2sxt*IR)-xavDRI2sxt*(CF_S_2sxt*SR)-DIAS_MORT*(CF_S_2sxt*SR)           +(CF_S_2sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_2sxt=y2sxt-Yrecup_2sxt-Ymort_2sxt # infectados no dia
+      Yinfectados_2sxt=y2sxt-YRecup_2sxt-Ymort_2sxt # infectados no dia
       MORTd2sxt=Ymort_2sxt-c(Ymort_2sxt[1],Ymort_2sxt[1:(length(Ymort_2sxt)-1)]) #mortos no dia
-      RECUPd2sxt=Yrecup_2sxt-c(Yrecup_2sxt[1],Yrecup_2sxt[1:(length(Yrecup_2sxt)-1)])#recuperados no dia
+      RECUPd2sxt=YRecup_2sxt-c(YRecup_2sxt[1],YRecup_2sxt[1:(length(YRecup_2sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_2sxt <- c(FALSE, diff(diff(Yinfectados_2sxt)>0)!=0)
@@ -749,7 +803,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y2sxt=rep(0,length(x)) 
         Casos_conf_2sxt=rep(0,length(x)) 
         Yinfectados_2sxt=rep(0,length(x))
-        Yrecup_2sxt=rep(0,length(x)) 
+        YRecup_2sxt=rep(0,length(x)) 
         Ymort_2sxt=rep(0,length(x))
         infectados_novos_2sxt=rep(0,length(x))
         hospitalizados_2sxt=rep(0,length(x))
@@ -766,13 +820,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
    
-      Yrecup_3sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_3sxt*Ir2 -xavDRI3sxt*(CF_S_3sxt*Sr2)-DIAS_REC*(CF_S_3sxt*Sr2)           +(CF_S_3sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_3sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_3sxt*Ir2)-xavDRI3sxt*(CF_S_3sxt*Sr2)-DIAS_MORT*(CF_S_3sxt*Sr2)           +(CF_S_3sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_3sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_3sxt*IR -xavDRI3sxt*(CF_S_3sxt*SR)-DIAS_REC*(CF_S_3sxt*SR)           +(CF_S_3sxt*SR)*x))) #acumulated number of infected people
+      Ymort_3sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_3sxt*IR)-xavDRI3sxt*(CF_S_3sxt*SR)-DIAS_MORT*(CF_S_3sxt*SR)           +(CF_S_3sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_3sxt=y3sxt-Yrecup_3sxt-Ymort_3sxt # infectados no dia
+      Yinfectados_3sxt=y3sxt-YRecup_3sxt-Ymort_3sxt # infectados no dia
       MORTd3sxt=Ymort_3sxt-c(Ymort_3sxt[1],Ymort_3sxt[1:(length(Ymort_3sxt)-1)]) #mortos no dia
-      RECUPd3sxt=Yrecup_3sxt-c(Yrecup_3sxt[1],Yrecup_3sxt[1:(length(Yrecup_3sxt)-1)])#recuperados no dia
+      RECUPd3sxt=YRecup_3sxt-c(YRecup_3sxt[1],YRecup_3sxt[1:(length(YRecup_3sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_3sxt <- c(FALSE, diff(diff(Yinfectados_3sxt)>0)!=0)
@@ -787,7 +841,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y3sxt=rep(0,length(x)) 
         Casos_conf_3sxt=rep(0,length(x)) 
         Yinfectados_3sxt=rep(0,length(x))
-        Yrecup_3sxt=rep(0,length(x)) 
+        YRecup_3sxt=rep(0,length(x)) 
         Ymort_3sxt=rep(0,length(x))
         infectados_novos_3sxt=rep(0,length(x))
         hospitalizados_3sxt=rep(0,length(x))
@@ -802,14 +856,14 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
     
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
-      Yrecup_4sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_4sxt*Ir2 -xavDRI4sxt*(CF_S_4sxt*Sr2)-DIAS_REC*(CF_S_4sxt*Sr2)           +(CF_S_4sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_4sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_4sxt*Ir2)-xavDRI4sxt*(CF_S_4sxt*Sr2)-DIAS_MORT*(CF_S_4sxt*Sr2)           +(CF_S_4sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_4sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_4sxt*IR -xavDRI4sxt*(CF_S_4sxt*SR)-DIAS_REC*(CF_S_4sxt*SR)           +(CF_S_4sxt*SR)*x))) #acumulated number of infected people
+      Ymort_4sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_4sxt*IR)-xavDRI4sxt*(CF_S_4sxt*SR)-DIAS_MORT*(CF_S_4sxt*SR)           +(CF_S_4sxt*SR)*x))) #acumulated number of infected people
 
             
       
-      Yinfectados_4sxt=y4sxt-Yrecup_4sxt-Ymort_4sxt # infectados no dia
+      Yinfectados_4sxt=y4sxt-YRecup_4sxt-Ymort_4sxt # infectados no dia
       MORTd4sxt=Ymort_4sxt-c(Ymort_4sxt[1],Ymort_4sxt[1:(length(Ymort_4sxt)-1)]) #mortos no dia
-      RECUPd4sxt=Yrecup_4sxt-c(Yrecup_4sxt[1],Yrecup_4sxt[1:(length(Yrecup_4sxt)-1)])#recuperados no dia
+      RECUPd4sxt=YRecup_4sxt-c(YRecup_4sxt[1],YRecup_4sxt[1:(length(YRecup_4sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_4sxt <- c(FALSE, diff(diff(Yinfectados_4sxt)>0)!=0)
@@ -824,7 +878,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y4sxt=rep(0,length(x)) 
         Casos_conf_4sxt=rep(0,length(x)) 
         Yinfectados_4sxt=rep(0,length(x))
-        Yrecup_5sxt=rep(0,length(x)) 
+        YRecup_4sxt=rep(0,length(x)) 
         Ymort_4sxt=rep(0,length(x))
         infectados_novos_4sxt=rep(0,length(x))
         hospitalizados_4sxt=rep(0,length(x))
@@ -840,13 +894,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_5sxt*Ir2 -xavDRI5sxt*(CF_S_5sxt*Sr2)-DIAS_REC*(CF_S_5sxt*Sr2)           +(CF_S_5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_5sxt*Ir2)-xavDRI5sxt*(CF_S_5sxt*Sr2)-DIAS_MORT*(CF_S_5sxt*Sr2)           +(CF_S_5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_5sxt*IR -xavDRI5sxt*(CF_S_5sxt*SR)-DIAS_REC*(CF_S_5sxt*SR)           +(CF_S_5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_5sxt*IR)-xavDRI5sxt*(CF_S_5sxt*SR)-DIAS_MORT*(CF_S_5sxt*SR)           +(CF_S_5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_5sxt=y5sxt-Yrecup_5sxt-Ymort_5sxt # infectados no dia
+      Yinfectados_5sxt=y5sxt-YRecup_5sxt-Ymort_5sxt # infectados no dia
       MORTd5sxt=Ymort_5sxt-c(Ymort_5sxt[1],Ymort_5sxt[1:(length(Ymort_5sxt)-1)]) #mortos no dia
-      RECUPd5sxt=Yrecup_5sxt-c(Yrecup_5sxt[1],Yrecup_5sxt[1:(length(Yrecup_5sxt)-1)])#recuperados no dia
+      RECUPd5sxt=YRecup_5sxt-c(YRecup_5sxt[1],YRecup_5sxt[1:(length(YRecup_5sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_5sxt <- c(FALSE, diff(diff(Yinfectados_5sxt)>0)!=0)
@@ -862,7 +916,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y5sxt=rep(0,length(x)) 
         Casos_conf_5sxt=rep(0,length(x)) 
         Yinfectados_5sxt=rep(0,length(x))
-        Yrecup_5sxt=rep(0,length(x)) 
+        YRecup_5sxt=rep(0,length(x)) 
         Ymort_5sxt=rep(0,length(x))
         infectados_novos_5sxt=rep(0,length(x))
         hospitalizados_5sxt=rep(0,length(x))
@@ -879,13 +933,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_0.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_0.5sxt*Ir2 -xavDRI0.5sxt*(CF_S_0.5sxt*Sr2)-DIAS_REC*(CF_S_0.5sxt*Sr2)           +(CF_S_0.5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_0.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_0.5sxt*Ir2)-xavDRI0.5sxt*(CF_S_0.5sxt*Sr2)-DIAS_MORT*(CF_S_0.5sxt*Sr2)           +(CF_S_0.5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_0.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_0.5sxt*IR -xavDRI0.5sxt*(CF_S_0.5sxt*SR)-DIAS_REC*(CF_S_0.5sxt*SR)           +(CF_S_0.5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_0.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_0.5sxt*IR)-xavDRI0.5sxt*(CF_S_0.5sxt*SR)-DIAS_MORT*(CF_S_0.5sxt*SR)           +(CF_S_0.5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_0.5sxt=y0.5sxt-Yrecup_0.5sxt-Ymort_0.5sxt # infectados no dia
+      Yinfectados_0.5sxt=y0.5sxt-YRecup_0.5sxt-Ymort_0.5sxt # infectados no dia
       MORTd0.5sxt=Ymort_0.5sxt-c(Ymort_0.5sxt[1],Ymort_0.5sxt[1:(length(Ymort_0.5sxt)-1)]) #mortos no dia
-      RECUPd0.5sxt=Yrecup_0.5sxt-c(Yrecup_0.5sxt[1],Yrecup_0.5sxt[1:(length(Yrecup_0.5sxt)-1)])#recuperados no dia
+      RECUPd0.5sxt=YRecup_0.5sxt-c(YRecup_0.5sxt[1],YRecup_0.5sxt[1:(length(YRecup_0.5sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_0.5sxt <- c(FALSE, diff(diff(Yinfectados_0.5sxt)>0)!=0)
@@ -900,7 +954,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y0.5sxt=rep(0,length(x)) 
         Casos_conf_0.5sxt=rep(0,length(x)) 
         Yinfectados_0.5sxt=rep(0,length(x))
-        Yrecup_0.5sxt=rep(0,length(x)) 
+        YRecup_0.5sxt=rep(0,length(x)) 
         Ymort_0.5sxt=rep(0,length(x))
         infectados_novos_0.5sxt=rep(0,length(x))
         hospitalizados_0.5sxt=rep(0,length(x))
@@ -917,13 +971,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_1.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_1.5sxt*Ir2 -xavDRI1.5sxt*(CF_S_1.5sxt*Sr2)-DIAS_REC*(CF_S_1.5sxt*Sr2)           +(CF_S_1.5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_1.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_1.5sxt*Ir2)-xavDRI1.5sxt*(CF_S_1.5sxt*Sr2)-DIAS_MORT*(CF_S_1.5sxt*Sr2)           +(CF_S_1.5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_1.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_1.5sxt*IR -xavDRI1.5sxt*(CF_S_1.5sxt*SR)-DIAS_REC*(CF_S_1.5sxt*SR)           +(CF_S_1.5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_1.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_1.5sxt*IR)-xavDRI1.5sxt*(CF_S_1.5sxt*SR)-DIAS_MORT*(CF_S_1.5sxt*SR)           +(CF_S_1.5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_1.5sxt=y1.5sxt-Yrecup_1.5sxt-Ymort_1.5sxt # infectados no dia
+      Yinfectados_1.5sxt=y1.5sxt-YRecup_1.5sxt-Ymort_1.5sxt # infectados no dia
       MORTd1.5sxt=Ymort_1.5sxt-c(Ymort_1.5sxt[1],Ymort_1.5sxt[1:(length(Ymort_1.5sxt)-1)]) #mortos no dia
-      RECUPd1.5sxt=Yrecup_1.5sxt-c(Yrecup_1.5sxt[1],Yrecup_1.5sxt[1:(length(Yrecup_1.5sxt)-1)])#recuperados no dia
+      RECUPd1.5sxt=YRecup_1.5sxt-c(YRecup_1.5sxt[1],YRecup_1.5sxt[1:(length(YRecup_1.5sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_1.5sxt <- c(FALSE, diff(diff(Yinfectados_1.5sxt)>0)!=0)
@@ -938,7 +992,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y1.5sxt=rep(0,length(x)) 
         Casos_conf_1.5sxt=rep(0,length(x)) 
         Yinfectados_1.5sxt=rep(0,length(x))
-        Yrecup_1.5sxt=rep(0,length(x)) 
+        YRecup_1.5sxt=rep(0,length(x)) 
         Ymort_1.5sxt=rep(0,length(x))
         infectados_novos_1.5sxt=rep(0,length(x))
         hospitalizados_1.5sxt=rep(0,length(x))
@@ -955,13 +1009,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_2.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_2.5sxt*Ir2 -xavDRI2.5sxt*(CF_S_2.5sxt*Sr2)-DIAS_REC*(CF_S_2.5sxt*Sr2)           +(CF_S_2.5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_2.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_2.5sxt*Ir2)-xavDRI2.5sxt*(CF_S_2.5sxt*Sr2)-DIAS_MORT*(CF_S_2.5sxt*Sr2)           +(CF_S_2.5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_2.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_2.5sxt*IR -xavDRI2.5sxt*(CF_S_2.5sxt*SR)-DIAS_REC*(CF_S_2.5sxt*SR)           +(CF_S_2.5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_2.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_2.5sxt*IR)-xavDRI2.5sxt*(CF_S_2.5sxt*SR)-DIAS_MORT*(CF_S_2.5sxt*SR)           +(CF_S_2.5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_2.5sxt=y2.5sxt-Yrecup_2.5sxt-Ymort_2.5sxt # infectados no dia
+      Yinfectados_2.5sxt=y2.5sxt-YRecup_2.5sxt-Ymort_2.5sxt # infectados no dia
       MORTd2.5sxt=Ymort_2.5sxt-c(Ymort_2.5sxt[1],Ymort_2.5sxt[1:(length(Ymort_2.5sxt)-1)]) #mortos no dia
-      RECUPd2.5sxt=Yrecup_2.5sxt-c(Yrecup_2.5sxt[1],Yrecup_2.5sxt[1:(length(Yrecup_2.5sxt)-1)])#recuperados no dia
+      RECUPd2.5sxt=YRecup_2.5sxt-c(YRecup_2.5sxt[1],YRecup_2.5sxt[1:(length(YRecup_2.5sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_2.5sxt <- c(FALSE, diff(diff(Yinfectados_2.5sxt)>0)!=0)
@@ -976,7 +1030,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y2.5sxt=rep(0,length(x)) 
         Casos_conf_2.5sxt=rep(0,length(x)) 
         Yinfectados_2.5sxt=rep(0,length(x))
-        Yrecup_2.5sxt=rep(0,length(x)) 
+        YRecup_2.5sxt=rep(0,length(x)) 
         Ymort_2.5sxt=rep(0,length(x))
         infectados_novos_2.5sxt=rep(0,length(x))
         hospitalizados_2.5sxt=rep(0,length(x))
@@ -992,13 +1046,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_3.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_3.5sxt*Ir2 -xavDRI3.5sxt*(CF_S_3.5sxt*Sr2)-DIAS_REC*(CF_S_3.5sxt*Sr2)           +(CF_S_3.5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_3.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_3.5sxt*Ir2)-xavDRI3.5sxt*(CF_S_3.5sxt*Sr2)-DIAS_MORT*(CF_S_3.5sxt*Sr2)           +(CF_S_3.5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_3.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_3.5sxt*IR -xavDRI3.5sxt*(CF_S_3.5sxt*SR)-DIAS_REC*(CF_S_3.5sxt*SR)           +(CF_S_3.5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_3.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_3.5sxt*IR)-xavDRI3.5sxt*(CF_S_3.5sxt*SR)-DIAS_MORT*(CF_S_3.5sxt*SR)           +(CF_S_3.5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_3.5sxt=y3.5sxt-Yrecup_3.5sxt-Ymort_3.5sxt # infectados no dia
+      Yinfectados_3.5sxt=y3.5sxt-YRecup_3.5sxt-Ymort_3.5sxt # infectados no dia
       MORTd3.5sxt=Ymort_3.5sxt-c(Ymort_3.5sxt[1],Ymort_3.5sxt[1:(length(Ymort_3.5sxt)-1)]) #mortos no dia
-      RECUPd3.5sxt=Yrecup_3.5sxt-c(Yrecup_3.5sxt[1],Yrecup_3.5sxt[1:(length(Yrecup_3.5sxt)-1)])#recuperados no dia
+      RECUPd3.5sxt=YRecup_3.5sxt-c(YRecup_3.5sxt[1],YRecup_3.5sxt[1:(length(YRecup_3.5sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_3.5sxt <- c(FALSE, diff(diff(Yinfectados_3.5sxt)>0)!=0)
@@ -1013,7 +1067,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y3.5sxt=rep(0,length(x)) 
         Casos_conf_3.5sxt=rep(0,length(x)) 
         Yinfectados_3.5sxt=rep(0,length(x))
-        Yrecup_3.5sxt=rep(0,length(x)) 
+        YRecup_3.5sxt=rep(0,length(x)) 
         Ymort_3.5sxt=rep(0,length(x))
         infectados_novos_3.5sxt=rep(0,length(x))
         hospitalizados_3.5sxt=rep(0,length(x))
@@ -1029,13 +1083,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_4.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_4.5sxt*Ir2 -xavDRI4.5sxt*(CF_S_4.5sxt*Sr2)-DIAS_REC*(CF_S_4.5sxt*Sr2)           +(CF_S_4.5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_4.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_4.5sxt*Ir2)-xavDRI4.5sxt*(CF_S_4.5sxt*Sr2)-DIAS_MORT*(CF_S_4.5sxt*Sr2)           +(CF_S_4.5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_4.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_4.5sxt*IR -xavDRI4.5sxt*(CF_S_4.5sxt*SR)-DIAS_REC*(CF_S_4.5sxt*SR)           +(CF_S_4.5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_4.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_4.5sxt*IR)-xavDRI4.5sxt*(CF_S_4.5sxt*SR)-DIAS_MORT*(CF_S_4.5sxt*SR)           +(CF_S_4.5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_4.5sxt=y4.5sxt-Yrecup_4.5sxt-Ymort_4.5sxt # infectados no dia
+      Yinfectados_4.5sxt=y4.5sxt-YRecup_4.5sxt-Ymort_4.5sxt # infectados no dia
       MORTd4.5sxt=Ymort_4.5sxt-c(Ymort_4.5sxt[1],Ymort_4.5sxt[1:(length(Ymort_4.5sxt)-1)]) #mortos no dia
-      RECUPd4.5sxt=Yrecup_4.5sxt-c(Yrecup_4.5sxt[1],Yrecup_4.5sxt[1:(length(Yrecup_4.5sxt)-1)])#recuperados no dia
+      RECUPd4.5sxt=YRecup_4.5sxt-c(YRecup_4.5sxt[1],YRecup_4.5sxt[1:(length(YRecup_4.5sxt)-1)])#recuperados no dia
       
       #ponto de inflexão
       infl_4.5sxt <- c(FALSE, diff(diff(Yinfectados_4.5sxt)>0)!=0)
@@ -1050,7 +1104,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y4.5sxt=rep(0,length(x)) 
         Casos_conf_4.5sxt=rep(0,length(x)) 
         Yinfectados_4.5sxt=rep(0,length(x))
-        Yrecup_4.5sxt=rep(0,length(x)) 
+        YRecup_4.5sxt=rep(0,length(x)) 
         Ymort_4.5sxt=rep(0,length(x))
         infectados_novos_4.5sxt=rep(0,length(x))
         hospitalizados_4.5sxt=rep(0,length(x))
@@ -1067,13 +1121,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
       
       #### RECUPERADOS, IFECTADOS, INFLEXÃO, HOSPITALIZADOS, LEITOS
       
-      Yrecup_5.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_5.5sxt*Ir2 -xavDRI5.5sxt*(CF_S_5.5sxt*Sr2)-DIAS_REC*(CF_S_5.5sxt*Sr2)           +(CF_S_5.5sxt*Sr2)*x))) #acumulated number of infected people
-      Ymort_5.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_5.5sxt*Ir2)-xavDRI5.5sxt*(CF_S_5.5sxt*Sr2)-DIAS_MORT*(CF_S_5.5sxt*Sr2)           +(CF_S_5.5sxt*Sr2)*x))) #acumulated number of infected people
+      YRecup_5.5sxt=(1-DR)*( ASSIMPTOTA/(1+1/exp(    CF_I_5.5sxt*IR -xavDRI5.5sxt*(CF_S_5.5sxt*SR)-DIAS_REC*(CF_S_5.5sxt*SR)           +(CF_S_5.5sxt*SR)*x))) #acumulated number of infected people
+      Ymort_5.5sxt=(DR)*( ASSIMPTOTA/(1+1/exp(    (CF_I_5.5sxt*IR)-xavDRI5.5sxt*(CF_S_5.5sxt*SR)-DIAS_MORT*(CF_S_5.5sxt*SR)           +(CF_S_5.5sxt*SR)*x))) #acumulated number of infected people
       
       
-      Yinfectados_5.5sxt=y5.5sxt-Yrecup_5.5sxt-Ymort_5.5sxt # infectados no dia
+      Yinfectados_5.5sxt=y5.5sxt-YRecup_5.5sxt-Ymort_5.5sxt # infectados no dia
       MORTd5.5sxt=Ymort_5.5sxt-c(Ymort_5.5sxt[1],Ymort_5.5sxt[1:(length(Ymort_5.5sxt)-1)]) #mortos no dia
-      RECUPd5.5sxt=Yrecup_5.5sxt-c(Yrecup_5.5sxt[1],Yrecup_5.5sxt[1:(length(Yrecup_5.5sxt)-1)])#recuperados no dia
+      RECUPd5.5sxt=YRecup_5.5sxt-c(YRecup_5.5sxt[1],YRecup_5.5sxt[1:(length(YRecup_5.5sxt)-1)])#recuperados no dia
      
       #ponto de inflexão
       infl_5.5sxt <- c(FALSE, diff(diff(Yinfectados_5.5sxt)>0)!=0)
@@ -1088,7 +1142,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         y5.5sxt=rep(0,length(x)) 
         Casos_conf_5.5sxt=rep(0,length(x)) 
         Yinfectados_5.5sxt=rep(0,length(x))
-        Yrecup_5.5sxt=rep(0,length(x)) 
+        YRecup_5.5sxt=rep(0,length(x)) 
         Ymort_5.5sxt=rep(0,length(x))
         infectados_novos_5.5sxt=rep(0,length(x))
         hospitalizados_5.5sxt=rep(0,length(x))
@@ -1154,9 +1208,27 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         text(1, 0.85*YLIM, paste(round(NIt,0), " (casos)"), cex =0.9, col="dark blue", adj=0)
         
         #######################################
-        if (Sys.Date()-DIAR1>=7){
+        if (Sys.Date()-DIAR1>=7&DATA3==TRUE){
           lines(xr[1:(DIFD1D3)],yr[1:(DIFD1D3)], col="red", lty=2)
-          lines(xr2[(DIFD1D3+1):length(xr2)],yr[(DIFD1D3+1):length(xr2)], col="dark orange", lty=2)
+          lines(xr2[(DIFD1D3+1):length(xr2)],yr2[(DIFD1D3+1):length(xr2)], col="dark orange", lty=2)
+          
+          # qual a data em que ser´o pico?
+          
+          
+          Function_mdfr = function(xr2) ASSIMPTOTA/(1+1/exp(Ir2+Sr2*xr2))
+          xpicor2= inverseFun(y = ASSIMPTOTA*0.99, Function_mdfr2, extendInt="yes")$root
+          Dpicor2=D1 +xpicor2
+          text(150, YLIM*0.7, paste(Dpicor2, "±7dias (max)"), cex =.9, col="dark orange",adj=1)
+          
+          if(R0e==T){
+          text(150, 0.98*YLIM, paste("R0ml=", round(R0r2,2),"R0b=", round(R0r2b,2), "; TxC atual = ", round(TxCR,2)), cex =0.9, col="dark orange", adj=1)
+          }
+         
+          
+         
+          
+        }else{
+          lines(xr,yr, col="red", lty=2)
           
           # qual a data em que ser´o pico?
           
@@ -1167,13 +1239,10 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
           text(150, YLIM*0.7, paste(Dpicor, "±7dias (max)"), cex =.9, col="dark orange",adj=1)
           
           if(R0e==T){
-          text(150, 0.98*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCr,2)), cex =0.9, col="dark orange", adj=1)
+            text(150, 0.98*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCR,2)), cex =0.9, col="dark orange", adj=1)
           }
           
-
-         
-          
-        } #laranja longa duração
+        }
         
       } #longa duração
       
@@ -1206,8 +1275,8 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
              col="dark blue", adj=0)
         
        
-          lines(xr2, Yinfectados_r2, col="orange", lty=2)
-          text(length(x), 0.75*YLIM, paste(INFL_Dr2, " (ponto de inflexão)"), font=2,cex =.9, col="dark orange", adj=1)
+          lines(XR, Yinfectados_R, col="orange", lty=2)
+          text(length(x), 0.75*YLIM, paste(INFL_DR, " (ponto de inflexão)"), font=2,cex =.9, col="dark orange", adj=1)
         
         
         
@@ -1231,7 +1300,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         if(ISOL>30){  lines(x[DRI:length(x)], Yinfectados_3sxt[DRI:length(x)], col="dark green", lty=2, lwd=2)}
         if(ISOL>40){ lines(x[DRI:length(x)], Yinfectados_4sxt[DRI:length(x)], col="dark orange", lty=2, lwd=2)}  
         if(ISOL>50){ lines(x[DRI:length(x)], Yinfectados_5sxt[DRI:length(x)], col="brown", lty=2, lwd=2)}
-        lines(xr, Yinfectados_r2, col="black", lty=2, lwd=2)
+        lines(xr, Yinfectados_R, col="black", lty=2, lwd=2)
         
                       text(length(x), 0.95*YLIM, paste(INFL_D0sxt, " (pt inf 0%isolamento)"), font=2,cex =.85, col="dark blue", adj=1)
         if(ISOL>10){  text(length(x), 0.9*YLIM, paste(INFL_D1sxt, " (pt inf 10%isolamento)"), font=2,cex =.85, col="#009999", adj=1)}
@@ -1239,7 +1308,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         if(ISOL>30){ text(length(x), 0.8*YLIM, paste(INFL_D3sxt, " (pt inf 30%isolamento)"), font=2,cex =.85, col="dark green", adj=1)}
         if(ISOL>40){ text(length(x), 0.75*YLIM, paste(INFL_D4sxt, " (pt inf 40%isolamento)"), font=2,cex =.85, col="dark orange", adj=1)}
         if(ISOL>50){ text(length(x), 0.7*YLIM, paste(INFL_D5sxt, " (pt inf 50%isolamento)"), font=2,cex =.85, col="brown", adj=1)}
-        text(length(x), 0.65*YLIM, paste(INFL_Dr2, " (pt inf ", ISOL,"%isolamento)"), font=2,cex =.85, col="black", adj=1)
+        text(length(x), 0.65*YLIM, paste(INFL_DR, " (pt inf ", ISOL,"%isolamento)"), font=2,cex =.85, col="black", adj=1)
 
       } # pico  
       
@@ -1279,8 +1348,8 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         
         if (Sys.Date()-DIAR1>=7){
           
-               lines(xr2,hospitalizados_r2, col="brown")
-              lines(xr2,leitos_r2, col="orange")
+               lines(XR,hospitalizados_r2, col="brown")
+              lines(XR,leitos_r2, col="orange")
           
              text(150, 0.75*YLIM, paste(INFL_Dr2, " (ponto de inflexão)"), font=2,cex =.9, col="dark orange", adj=1)
           
@@ -1336,13 +1405,13 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
         
         
         #######################################
-        if (Sys.Date()-DIAR1>=7){
+        if (Sys.Date()-DIAR1>=7&DATA3==TRUE){
           lines(x[1:(DIAR)],y[1:(DIAR)], col="blue", lty=2)
           lines(xr[(DIAR+1):(DIFD1D3)],yr[(DIAR+1):(DIFD1D3)], col="red", lty=2)
           lines(xr2[(DIFD1D3+1):length(xr2)],yr2[(DIFD1D3+1):length(xr2)], col="dark orange", lty=2)
           
           if(R0e==T){
-           text(XLIM-0.05*XLIM, 0.2*YLIM, paste("R0ml=", round(R0r2,2),"R0b=", round(R0r2b,2), "; TxC atual = ", round(TxCr2,2)), cex =.9, col="dark orange", adj=1)
+           text(XLIM-0.05*XLIM, 0.2*YLIM, paste("R0ml=", round(R0r2,2),"R0b=", round(R0r2b,2), "; TxC atual = ", round(TxCR,2)), cex =.9, col="dark orange", adj=1)
           }
           # qual a data em que ser´o pico?
           
@@ -1352,7 +1421,24 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
           Dpicor2=D1 +xpicor2
               text(XLIM-0.05*XLIM, 0.1*YLIM, paste(INFL_Dr2, " (ponto de inflexão)"), font=2,cex =0.9, col="dark orange", adj=1)
           
-        } # laranja curta duração
+        } else {
+          lines(x[1:(DIAR)],y[1:(DIAR)], col="blue", lty=2)
+          lines(xr[(DIAR+1):length(xr)],yr[(DIAR+1):length(yr)], col="red", lty=2)
+          
+          
+          if(R0e==T){
+            text(XLIM-0.05*XLIM, 0.2*YLIM, paste("R0ml=", round(R0r,2),"R0b=", round(R0rb,2), "; TxC atual = ", round(TxCR,2)), cex =.9, col="dark orange", adj=1)
+          }
+          # qual a data em que ser´o pico?
+          
+          
+          Function_mdfr = function(xr) ASSIMPTOTA/(1+1/exp(Ir+Sr*xr))
+          xpicor= inverseFun(y = ASSIMPTOTA*0.99, Function_mdfr, extendInt="yes")$root
+          Dpicor=D1 +xpicor
+          text(XLIM-0.05*XLIM, 0.1*YLIM, paste(INFL_Dr, " (ponto de inflexão)"), font=2,cex =0.9, col="dark orange", adj=1)
+          
+        } 
+           
         
       } # curta duração
       
@@ -1429,7 +1515,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
  #     mtext(paste("margem de erro de datas estimadas baseada em variação de capacidade de suporte (K) "), 
 #            line=-1, side=1, outer=TRUE, cex=0.8, adj = 1,  col="dark grey" )
       
-      if(DATA3==TRUE){  Casos_conf_lar=yr2
+      if(DATA3==TRUE){  
       Casos_conf_azul=y 
       Casos_conf_lar=yr2
         Infectados_azul=Yinfectados 
@@ -1496,7 +1582,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_0sxt=c(rep(0,DRI),y0sxt[(DRI+1):length(x)]), 
                             Infectados_0sxt=c(rep(0,DRI),Yinfectados_0sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_0sxt=c(rep(0,DRI),Yrecup_0sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_0sxt=c(rep(0,DRI),YRecup_0sxt[(DRI+1):length(x)]), 
                             mortos_ac_0sxt=c(rep(0,DRI),Ymort_0sxt[(DRI+1):length(x)]),
                             Novos_infectados_0sxt=c(rep(0,DRI),infectados_novos_0sxt[(DRI+1):length(x)]),
                             hospitalizados_0sxt=c(rep(0,DRI),hospitalizados_0sxt[(DRI+1):length(x)]), 
@@ -1506,7 +1592,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                                          
                             Casos_conf_1sxt=c(rep(0,DRI),y1sxt[(DRI+1):length(x)]), 
                             Infectados_1sxt=c(rep(0,DRI),Yinfectados_1sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_1sxt=c(rep(0,DRI),Yrecup_1sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_1sxt=c(rep(0,DRI),YRecup_1sxt[(DRI+1):length(x)]), 
                             mortos_ac_1sxt=c(rep(0,DRI),Ymort_1sxt[(DRI+1):length(x)]),
                             Novos_infectados_1sxt=c(rep(0,DRI),infectados_novos_1sxt[(DRI+1):length(x)]),
                             hospitalizados_1sxt=c(rep(0,DRI),hospitalizados_1sxt[(DRI+1):length(x)]), 
@@ -1516,7 +1602,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_2sxt=c(rep(0,DRI),y2sxt[(DRI+1):length(x)]), 
                             Infectados_2sxt=c(rep(0,DRI),Yinfectados_2sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_2sxt=c(rep(0,DRI),Yrecup_2sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_2sxt=c(rep(0,DRI),YRecup_2sxt[(DRI+1):length(x)]), 
                             mortos_ac_2sxt=c(rep(0,DRI),Ymort_2sxt[(DRI+1):length(x)]),
                             Novos_infectados_2sxt=c(rep(0,DRI),infectados_novos_2sxt[(DRI+1):length(x)]),
                             hospitalizados_2sxt=c(rep(0,DRI),hospitalizados_2sxt[(DRI+1):length(x)]), 
@@ -1527,7 +1613,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_3sxt=c(rep(0,DRI),y3sxt[(DRI+1):length(x)]), 
                             Infectados_3sxt=c(rep(0,DRI),Yinfectados_3sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_3sxt=c(rep(0,DRI),Yrecup_3sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_3sxt=c(rep(0,DRI),YRecup_3sxt[(DRI+1):length(x)]), 
                             mortos_ac_3sxt=c(rep(0,DRI),Ymort_3sxt[(DRI+1):length(x)]),
                             Novos_infectados_3sxt=c(rep(0,DRI),infectados_novos_3sxt[(DRI+1):length(x)]),
                             hospitalizados_3sxt=c(rep(0,DRI),hospitalizados_3sxt[(DRI+1):length(x)]), 
@@ -1538,7 +1624,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_4sxt=c(rep(0,DRI),y4sxt[(DRI+1):length(x)]), 
                             Infectados_4sxt=c(rep(0,DRI),Yinfectados_4sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_4sxt=c(rep(0,DRI),Yrecup_4sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_4sxt=c(rep(0,DRI),YRecup_4sxt[(DRI+1):length(x)]), 
                             mortos_ac_4sxt=c(rep(0,DRI),Ymort_4sxt[(DRI+1):length(x)]),
                             Novos_infectados_4sxt=c(rep(0,DRI),infectados_novos_4sxt[(DRI+1):length(x)]),
                             hospitalizados_4sxt=c(rep(0,DRI),hospitalizados_4sxt[(DRI+1):length(x)]), 
@@ -1549,7 +1635,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_5sxt=c(rep(0,DRI),y5sxt[(DRI+1):length(x)]), 
                             Infectados_5sxt=c(rep(0,DRI),Yinfectados_5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_5sxt=c(rep(0,DRI),Yrecup_5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_5sxt=c(rep(0,DRI),YRecup_5sxt[(DRI+1):length(x)]), 
                             mortos_ac_5sxt=c(rep(0,DRI),Ymort_5sxt[(DRI+1):length(x)]),
                             Novos_infectados_5sxt=c(rep(0,DRI),infectados_novos_5sxt[(DRI+1):length(x)]),
                             hospitalizados_5sxt=c(rep(0,DRI),hospitalizados_5sxt[(DRI+1):length(x)]), 
@@ -1559,7 +1645,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_0.5sxt=c(rep(0,DRI),y0.5sxt[(DRI+1):length(x)]), 
                             Infectados_0.5sxt=c(rep(0,DRI),Yinfectados_0.5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_0.5sxt=c(rep(0,DRI),Yrecup_0.5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_0.5sxt=c(rep(0,DRI),YRecup_0.5sxt[(DRI+1):length(x)]), 
                             mortos_ac_0.5sxt=c(rep(0,DRI),Ymort_0.5sxt[(DRI+1):length(x)]),
                             Novos_infectados_0.5sxt=c(rep(0,DRI),infectados_novos_0.5sxt[(DRI+1):length(x)]),
                             hospitalizados_0.5sxt=c(rep(0,DRI),hospitalizados_0.5sxt[(DRI+1):length(x)]), 
@@ -1569,7 +1655,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_1.5sxt=c(rep(0,DRI),y1.5sxt[(DRI+1):length(x)]), 
                             Infectados_1.5sxt=c(rep(0,DRI),Yinfectados_1.5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_1.5sxt=c(rep(0,DRI),Yrecup_1.5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_1.5sxt=c(rep(0,DRI),YRecup_1.5sxt[(DRI+1):length(x)]), 
                             mortos_ac_1.5sxt=c(rep(0,DRI),Ymort_1.5sxt[(DRI+1):length(x)]),
                             Novos_infectados_1.5sxt=c(rep(0,DRI),infectados_novos_1.5sxt[(DRI+1):length(x)]),
                             hospitalizados_1.5sxt=c(rep(0,DRI),hospitalizados_1.5sxt[(DRI+1):length(x)]), 
@@ -1579,7 +1665,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_2.5sxt=c(rep(0,DRI),y2.5sxt[(DRI+1):length(x)]), 
                             Infectados_2.5sxt=c(rep(0,DRI),Yinfectados_2.5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_2.5sxt=c(rep(0,DRI),Yrecup_2.5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_2.5sxt=c(rep(0,DRI),YRecup_2.5sxt[(DRI+1):length(x)]), 
                             mortos_ac_2.5sxt=c(rep(0,DRI),Ymort_2.5sxt[(DRI+1):length(x)]),
                             Novos_infectados_2.5sxt=c(rep(0,DRI),infectados_novos_2.5sxt[(DRI+1):length(x)]),
                             hospitalizados_2.5sxt=c(rep(0,DRI),hospitalizados_2.5sxt[(DRI+1):length(x)]), 
@@ -1590,7 +1676,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_3.5sxt=c(rep(0,DRI),y3.5sxt[(DRI+1):length(x)]), 
                             Infectados_3.5sxt=c(rep(0,DRI),Yinfectados_3.5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_3.5sxt=c(rep(0,DRI),Yrecup_3.5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_3.5sxt=c(rep(0,DRI),YRecup_3.5sxt[(DRI+1):length(x)]), 
                             mortos_ac_3.5sxt=c(rep(0,DRI),Ymort_3.5sxt[(DRI+1):length(x)]),
                             Novos_infectados_3.5sxt=c(rep(0,DRI),infectados_novos_3.5sxt[(DRI+1):length(x)]),
                             hospitalizados_3.5sxt=c(rep(0,DRI),hospitalizados_3.5sxt[(DRI+1):length(x)]), 
@@ -1601,7 +1687,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_4.5sxt=c(rep(0,DRI),y4.5sxt[(DRI+1):length(x)]), 
                             Infectados_4.5sxt=c(rep(0,DRI),Yinfectados_4.5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_4.5sxt=c(rep(0,DRI),Yrecup_4.5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_4.5sxt=c(rep(0,DRI),YRecup_4.5sxt[(DRI+1):length(x)]), 
                             mortos_ac_4.5sxt=c(rep(0,DRI),Ymort_4.5sxt[(DRI+1):length(x)]),
                             Novos_infectados_4.5sxt=c(rep(0,DRI),infectados_novos_4.5sxt[(DRI+1):length(x)]),
                             hospitalizados_4.5sxt=c(rep(0,DRI),hospitalizados_4.5sxt[(DRI+1):length(x)]), 
@@ -1612,7 +1698,7 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
                             
                             Casos_conf_5.5sxt=c(rep(0,DRI),y5.5sxt[(DRI+1):length(x)]), 
                             Infectados_5.5sxt=c(rep(0,DRI),Yinfectados_5.5sxt[(DRI+1):length(x)]), 
-                            Recuperados_ac_5.5sxt=c(rep(0,DRI),Yrecup_5.5sxt[(DRI+1):length(x)]), 
+                            Recuperados_ac_5.5sxt=c(rep(0,DRI),YRecup_5.5sxt[(DRI+1):length(x)]), 
                             mortos_ac_5.5sxt=c(rep(0,DRI),Ymort_5.5sxt[(DRI+1):length(x)]),
                             Novos_infectados_5.5sxt=c(rep(0,DRI),infectados_novos_5.5sxt[(DRI+1):length(x)]),
                             hospitalizados_5.5sxt=c(rep(0,DRI),hospitalizados_5.5sxt[(DRI+1):length(x)]), 
@@ -1634,4 +1720,5 @@ C19Proj_function = function(Data.Table, Tabela.info,DATA3=T,Col.region=2, Col.da
   write.table(TABELA_todos, file=TableFile, sep="\t",row.names = F)
   } # loop Tabela 
 } #loop function
+
 
